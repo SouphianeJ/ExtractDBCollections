@@ -1,100 +1,68 @@
 # MongoDB Collection Extractor
 
-A full-stack application built with Angular (frontend) and Node.js/Express (backend) that allows you to extract collections from MongoDB and download them as JSON files.
+A full-stack application powered by **Next.js** that lets you extract MongoDB collections and download them as JSON (single collection) or ZIP archives (multiple collections). The UI and API live in the same project, eliminating the Angular + Express monorepo setup while keeping all existing functionality.
 
 ## Features
 
-- **MongoDB URI Connection**: Connect to any MongoDB database using a URI
-- **Single Collection Extraction**: Extract documents from a specific collection
-- **All Collections Extraction**: Extract documents from all collections in the database
-- **Limit Mode**: Extract only 3 random documents per collection
-- **Full Extraction**: Extract all documents from collections
-- **Smart Download**:
-  - Single collection → JSON file
-  - Multiple collections → ZIP file containing multiple JSON files
+- **MongoDB URI Connection** – Connect to any MongoDB instance via connection string
+- **Single Collection Extraction** – Download every document from a chosen collection
+- **All Collections Extraction** – Export every collection from the connected database
+- **Limit Mode** – Optionally grab only three random documents per collection
+- **Smart Downloading**
+  - Single collection → JSON file download
+  - Multiple collections → ZIP archive containing one JSON file per collection
 
 ## Project Structure
 
 ```
 ExtractDBCollections/
-├── extract-db-app/          # Angular frontend application
-│   ├── src/
-│   │   ├── app/
-│   │   │   ├── app.ts       # Main component with form logic
-│   │   │   ├── app.html     # Form template
-│   │   │   └── app.css      # Component styles
-│   │   └── styles.css       # Global styles
-│   └── package.json
-│
-└── server/                   # Node.js/Express backend
-    ├── src/
-    │   └── index.ts         # Server with MongoDB extraction logic
-    ├── tsconfig.json        # TypeScript configuration (strict mode)
-    └── package.json
+├── app/
+│   ├── api/
+│   │   ├── extract/route.ts   # API route that handles MongoDB extraction and file streaming
+│   │   └── health/route.ts    # Lightweight health-check endpoint
+│   ├── globals.css            # Global styles shared by the application
+│   ├── layout.tsx             # Root layout definition
+│   └── page.tsx               # UI with the extraction form and download logic
+├── next.config.mjs            # Next.js configuration
+├── package.json               # Dependencies and scripts
+├── tsconfig.json              # TypeScript configuration (strict mode)
+└── README.md                  # Project documentation
 ```
 
 ## Prerequisites
 
-- Node.js (v20 or higher)
-- npm (v10 or higher)
-- MongoDB instance accessible via URI
+- Node.js **v20** or newer
+- npm **v10** or newer
+- An accessible MongoDB instance and connection string
 
-## Installation
+## Getting Started
 
-### 1. Install Frontend Dependencies
+Install dependencies and run the development server:
 
 ```bash
-cd extract-db-app
 npm install
-```
-
-### 2. Install Backend Dependencies
-
-```bash
-cd ../server
-npm install
-```
-
-## Running the Application
-
-### 1. Start the Backend Server
-
-```bash
-cd server
 npm run dev
 ```
 
-The server will start on `http://localhost:3000`
-
-### 2. Start the Frontend Application
-
-In a new terminal:
-
-```bash
-cd extract-db-app
-npm start
-```
-
-The Angular app will start on `http://localhost:4200`
+The application runs on [http://localhost:3000](http://localhost:3000). The UI and API share the same origin, so no extra proxy or CORS setup is required.
 
 ## Usage
 
-1. Open your browser and navigate to `http://localhost:4200`
-2. Fill in the form:
-   - **MongoDB URI**: e.g., `mongodb://localhost:27017/mydb`
-   - **Collection Name**: e.g., `users` (disabled when "Extract all collections" is checked)
-   - **Extract only 3 documents**: Check to limit extraction to 3 random documents
-   - **Extract all collections**: Check to extract from all collections in the database
-3. Click "Extract & Download" to start the extraction
-4. The file(s) will be downloaded automatically
+1. Open the app at `http://localhost:3000`.
+2. Enter your **MongoDB URI**.
+3. (Optional) Provide a **collection name**. Leave blank and enable *Extract all collections* to export everything.
+4. Toggle **Extract only 3 random documents** if you want a sample instead of the full dataset.
+5. Click **Extract & Download**.
+6. The browser downloads either a JSON file (single collection) or a ZIP archive (multiple collections).
 
 ## API Endpoints
 
-### POST /api/extract
+### `POST /api/extract`
 
-Extracts data from MongoDB based on the provided parameters.
+Extracts data from MongoDB based on the submitted payload.
 
-**Request Body:**
+**Request body**
+
 ```json
 {
   "mongoUri": "mongodb://localhost:27017/mydb",
@@ -104,62 +72,40 @@ Extracts data from MongoDB based on the provided parameters.
 }
 ```
 
-**Response:**
-- Single collection: JSON file
-- Multiple collections: ZIP file
+**Responses**
 
-### GET /api/health
+- **200 JSON** – Single collection export (attachment with `<collection>.json`)
+- **200 ZIP** – Multiple collection export (attachment with `collections.zip`)
+- **400 JSON** – Validation error (missing URI or collection)
+- **500 JSON** – Extraction failure details
 
-Health check endpoint.
+### `GET /api/health`
 
-**Response:**
+Simple health-check endpoint returning:
+
 ```json
-{
-  "status": "ok"
-}
+{ "status": "ok" }
 ```
 
-## TypeScript Strict Mode
+## Production Build
 
-Both frontend and backend are configured with TypeScript strict mode enabled:
-
-**Frontend** (`extract-db-app/tsconfig.json`):
-- `strict: true`
-- `strictTemplates: true`
-- Additional strict options enabled
-
-**Backend** (`server/tsconfig.json`):
-- `strict: true`
-- Full type safety enforced
-
-## Building for Production
-
-### Frontend
+Create an optimized production build and start the server:
 
 ```bash
-cd extract-db-app
 npm run build
+npm start
 ```
 
-Build output will be in `extract-db-app/dist/extract-db-app`
+## Security Notes
 
-### Backend
+- Never expose MongoDB credentials publicly. Prefer environment variables or secret managers.
+- Restrict access to this tool in production environments.
+- Validate user input and enforce authentication/authorization where appropriate.
 
-```bash
-cd server
-npm run build
-```
+## Troubleshooting
 
-Build output will be in `server/dist`
+- **Connection issues** – Ensure the MongoDB URI is correct and the database is reachable from your environment.
+- **Download fails** – Check server logs for detailed error messages returned by `/api/extract`.
+- **Port conflicts** – Set the `PORT` environment variable before running `npm run dev` or `npm start`.
 
-## Security Considerations
-
-- Never expose MongoDB credentials in the frontend
-- Use environment variables for sensitive configuration
-- Implement proper authentication and authorization in production
-- Validate and sanitize all user inputs
-- Use secure MongoDB connection strings (TLS/SSL)
-
-## License
-
-ISC
+Enjoy the streamlined Next.js experience while keeping the original MongoDB extraction workflow intact!
