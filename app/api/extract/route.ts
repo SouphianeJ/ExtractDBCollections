@@ -3,14 +3,18 @@ import { MongoClient, Db } from 'mongodb';
 import archiver from 'archiver';
 import { PassThrough } from 'stream';
 
+import { resolveMongoConnectionUri } from '../../../lib/preconfiguredMongoUris';
+
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
 type ExtractionRequest = {
   mongoUri: string;
+  databaseName: string;
   collectionName: string;
   limitTo3: boolean;
   allCollections: boolean;
+  preconfiguredMongoUriId: string;
 };
 
 type DocumentData = {
@@ -92,25 +96,37 @@ async function createZip(results: DocumentData[]): Promise<Buffer> {
 
 function parseBody(body: Partial<ExtractionRequest>): ExtractionRequest {
   const mongoUri = typeof body.mongoUri === 'string' ? body.mongoUri.trim() : '';
+  const databaseName = typeof body.databaseName === 'string' ? body.databaseName.trim() : '';
   const collectionName = typeof body.collectionName === 'string' ? body.collectionName.trim() : '';
   const limitTo3 = Boolean(body.limitTo3);
   const allCollections = Boolean(body.allCollections);
+  const preconfiguredMongoUriId =
+    typeof body.preconfiguredMongoUriId === 'string' ? body.preconfiguredMongoUriId.trim() : '';
 
   return {
     mongoUri,
+    databaseName,
     collectionName,
     limitTo3,
-    allCollections
+    allCollections,
+    preconfiguredMongoUriId
   };
 }
 
 export async function POST(request: Request) {
   try {
     const requestBody = (await request.json()) as Partial<ExtractionRequest>;
-    const { mongoUri, collectionName, limitTo3, allCollections } = parseBody(requestBody);
+    const { mongoUri, databaseName, collectionName, limitTo3, allCollections, preconfiguredMongoUriId } =
+      parseBody(requestBody);
 
-    if (!mongoUri) {
-      return NextResponse.json({ error: 'MongoDB URI is required' }, { status: 400 });
+    const resolved = resolveMongoConnectionUri(mongoUri, preconfiguredMongoUriId);
+
+    if (!resolved.success) {
+      return NextResponse.json({ error: resolved.error }, { status: resolved.status });
+    }
+
+    if (!databaseName) {
+      return NextResponse.json({ error: 'Database name is required' }, { status: 400 });
     }
 
     if (!allCollections && !collectionName) {
@@ -120,11 +136,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const client = new MongoClient(mongoUri);
+    const client = new MongoClient(resolved.uri);
 
     try {
       await client.connect();
-      const db = client.db();
+      const db = client.db(databaseName);
       const results: DocumentData[] = [];
 
       if (allCollections) {
