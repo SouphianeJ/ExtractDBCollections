@@ -3,25 +3,16 @@
 ## Prerequisites
 - Node.js v20+
 - npm v10+
-- MongoDB instance
+- MongoDB instance (local or remote)
 
-## Installation & Running
+## Install & Run
 
-### 1. Backend Server
 ```bash
-cd server
 npm install
 npm run dev
 ```
-Server runs on: http://localhost:3000
 
-### 2. Frontend App
-```bash
-cd extract-db-app
-npm install
-npm start
-```
-App runs on: http://localhost:4200
+Visit the app at [http://localhost:3000](http://localhost:3000).
 
 ## Usage Examples
 
@@ -61,7 +52,7 @@ App runs on: http://localhost:4200
 
 ### POST /api/extract
 
-**Request:**
+**Request**
 ```json
 {
   "mongoUri": "mongodb://localhost:27017/mydb",
@@ -71,38 +62,25 @@ App runs on: http://localhost:4200
 }
 ```
 
-**Response:**
-- Single collection: JSON file
-- Multiple collections: ZIP file
+**Response**
+- Single collection: JSON download
+- Multiple collections: ZIP download
 
-## Development
+## Production Build
 
-### Build Frontend
 ```bash
-cd extract-db-app
 npm run build
+npm start
 ```
-
-### Build Backend
-```bash
-cd server
-npm run build
-```
-
-### TypeScript Strict Mode
-Both projects use strict TypeScript configuration for type safety.
 
 ## Troubleshooting
 
-**Cannot connect to MongoDB:**
-- Ensure MongoDB is running
-- Check the MongoDB URI format
-- Verify network access to MongoDB
+**Cannot connect to MongoDB**
+- Ensure MongoDB is running and reachable
+- Verify the connection string
 
-**Port already in use:**
-- Backend: Change PORT in server/.env
-- Frontend: Change port in angular.json
+**Download issues**
+- Check terminal output for errors from `/api/extract`
 
-**CORS errors:**
-- Backend has CORS enabled by default
-- Check that backend is running on port 3000
+**Port already in use**
+- Set the `PORT` environment variable before running `npm run dev` or `npm start`
