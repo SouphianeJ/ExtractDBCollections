@@ -22,6 +22,17 @@ type DocumentData = {
   documents: unknown[];
 };
 
+function generateTimestampSuffix(): string {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+
+  return `${year}${month}${day}_${hours}${minutes}`;
+}
+
 async function getRandomDocuments(db: Db, collectionName: string, limit: number) {
   const collection = db.collection(collectionName);
   const count = await collection.countDocuments();
@@ -48,7 +59,7 @@ async function extractFromCollection(db: Db, collectionName: string, limitTo3: b
   };
 }
 
-async function createZip(results: DocumentData[]): Promise<Buffer> {
+async function createZip(results: DocumentData[], timestampSuffix: string): Promise<Buffer> {
   return new Promise((resolve, reject) => {
     const archive = archiver('zip', { zlib: { level: 9 } });
     const passThrough = new PassThrough();
@@ -83,7 +94,7 @@ async function createZip(results: DocumentData[]): Promise<Buffer> {
 
     for (const result of results) {
       const jsonContent = JSON.stringify(result.documents, null, 2);
-      archive.append(jsonContent, { name: `${result.collectionName}.json` });
+      archive.append(jsonContent, { name: `${result.collectionName}_${timestampSuffix}.json` });
     }
 
     archive
@@ -158,11 +169,13 @@ export async function POST(request: Request) {
         results.push(data);
       }
 
+      const timestampSuffix = generateTimestampSuffix();
+
       if (results.length === 1) {
         const [result] = results;
         const headers = new Headers({
           'Content-Type': 'application/json',
-          'Content-Disposition': `attachment; filename="${encodeURIComponent(result.collectionName)}.json"`
+          'Content-Disposition': `attachment; filename="${encodeURIComponent(`${result.collectionName}_${timestampSuffix}.json`)}"`
         });
 
         return new NextResponse(JSON.stringify(result.documents, null, 2), {
@@ -171,10 +184,10 @@ export async function POST(request: Request) {
         });
       }
 
-      const zipBuffer = await createZip(results);
+      const zipBuffer = await createZip(results, timestampSuffix);
       const headers = new Headers({
         'Content-Type': 'application/zip',
-        'Content-Disposition': 'attachment; filename="collections.zip"'
+        'Content-Disposition': `attachment; filename="collections_${timestampSuffix}.zip"`
       });
 
       const zipData = new Uint8Array(zipBuffer);
