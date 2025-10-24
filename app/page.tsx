@@ -1,4 +1,5 @@
 import ExtractorForm, { MongoUriOption } from '../components/ExtractorForm';
+import PasswordGate from '../components/PasswordGate';
 import { getPreconfiguredMongoUris } from '../lib/preconfiguredMongoUris';
 
 function mapToOption(option: { id: string; name: string }): MongoUriOption {
@@ -8,5 +9,9 @@ function mapToOption(option: { id: string; name: string }): MongoUriOption {
 export default function HomePage() {
   const preconfiguredOptions = getPreconfiguredMongoUris().map(mapToOption);
 
-  return <ExtractorForm preconfiguredOptions={preconfiguredOptions} />;
+  return (
+    <PasswordGate>
+      <ExtractorForm preconfiguredOptions={preconfiguredOptions} />
+    </PasswordGate>
+  );
 }
