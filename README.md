@@ -4,6 +4,7 @@ A full-stack application powered by **Next.js** that lets you extract MongoDB co
 
 ## Features
 
+- **Secure admin workspace** – Dedicated login flow with long-lived sessions when "Se souvenir de moi" is enabled
 - **MongoDB URI Connection** – Connect to any MongoDB instance via connection string
 - **Database & Collection Browsing** – Automatically discover databases and collections for the selected connection
 - **Single Collection Extraction** – Download every document from a chosen collection
@@ -21,15 +22,22 @@ ExtractDBCollections/
 │   ├── api/
 │   │   ├── extract/route.ts   # API route that handles MongoDB extraction and file streaming
 │   │   └── health/route.ts    # Lightweight health-check endpoint
+│   ├── admin/                 # Auth-protected admin experience (layout + tools)
+│   ├── api/                   # Route handlers for database access and extraction
 │   ├── globals.css            # Global styles shared by the application
 │   ├── layout.tsx             # Root layout definition
-│   └── page.tsx               # Server component that wires preconfigured connections into the UI
+│   ├── login/                 # Public login page with credentials form
+│   └── page.tsx               # Landing route redirecting to /login or /admin
 ├── components/
-│   └── ExtractorForm.tsx      # Client component containing the interactive extraction form
+│   ├── ExtractorForm.tsx      # Client component containing the interactive extraction form
+│   ├── LoginForm.tsx          # Credentials form rendered on the login page
+│   └── LogoutButton.tsx       # Logout control rendered in the admin header
 ├── lib/
 │   └── preconfiguredMongoUris.ts # Helpers for reading preconfigured MongoDB URIs from the environment
+├── middleware.ts             # Protects /admin routes and redirects to /login when needed
 ├── next.config.mjs            # Next.js configuration
 ├── package.json               # Dependencies and scripts
+├── src/lib/auth/session.ts    # Helpers for signing, verifying, and enforcing admin sessions
 ├── tsconfig.json              # TypeScript configuration (strict mode)
 └── README.md                  # Project documentation
 ```
@@ -53,7 +61,14 @@ The application runs on [http://localhost:3000](http://localhost:3000). The UI a
 
 ### Environment configuration
 
-Create a `.env` file at the project root to define up to four reusable MongoDB connections. Each connection requires a URI and a friendly name that appears in the selector:
+Create a `.env` file at the project root. At minimum you must provide the admin credentials that guard the interface:
+
+```
+ADMIN_IDENTIFIER="admin@example.com"
+ADMIN_PASSWORD="super-secret-password"
+```
+
+You can optionally define up to four reusable MongoDB connections. Each connection requires a URI and a friendly name that appears in the selector:
 
 ```
 MONGODB_URI1="mongodb://localhost:27017/mydb"
@@ -73,12 +88,13 @@ Only pairs with both values populated appear in the dropdown. Select **Enter cus
 
 ## Usage
 
-1. Open the app at `http://localhost:3000`.
-2. Choose a preconfigured connection from the dropdown or select **Enter custom MongoDB URI** to provide your own string.
-3. Once the connection is available, pick a database from the **Database** dropdown (the app fetches the list automatically).
-4. Select a collection from the **Collection** dropdown, or enable *Extract all collections* to export every collection in the database.
-5. Toggle **Extract only 3 random documents** if you want a sample instead of the full dataset.
-6. Click **Extract & Download** to receive either a JSON file (single collection) or a ZIP archive (multiple collections).
+1. Open the app at `http://localhost:3000` and authenticate with the admin identifier/password configured in `.env`.
+2. (Optional) Enable **Se souvenir de moi** to stay signed in for 30 days on the current device. Leaving it unchecked keeps the session short lived.
+3. After signing in you are redirected to `/admin`, where you can choose a preconfigured connection from the dropdown or select **Enter custom MongoDB URI** to provide your own string.
+4. Once the connection is available, pick a database from the **Database** dropdown (the app fetches the list automatically).
+5. Select a collection from the **Collection** dropdown, or enable *Extract all collections* to export every collection in the database.
+6. Toggle **Extract only 3 random documents** if you want a sample instead of the full dataset.
+7. Click **Extract & Download** to receive either a JSON file (single collection) or a ZIP archive (multiple collections).
 
 ## API Endpoints
 
@@ -169,8 +185,9 @@ npm start
 ## Security Notes
 
 - Never expose MongoDB credentials publicly. Prefer environment variables or secret managers.
-- Restrict access to this tool in production environments.
+- Restrict access to this tool in production environments and rotate the admin credentials regularly.
 - Validate user input and enforce authentication/authorization where appropriate.
+- Admin sessions are stored in an HTTP-only cookie signed with your admin credentials; protect the `.env` file accordingly.
 
 ## Troubleshooting
 
