@@ -1,30 +1,33 @@
 import { NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
 
-import { resolveMongoConnectionUri } from '../../../lib/preconfiguredMongoUris';
+import { getAdminSession } from '@/lib/auth/session';
+import { resolveMongoConnectionUri } from '@/lib/preconfiguredMongoUris';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-type CollectionsRequest = {
+type DatabasesRequest = {
   mongoUri: string;
   preconfiguredMongoUriId: string;
-  databaseName: string;
 };
 
-function parseBody(body: Partial<CollectionsRequest>): CollectionsRequest {
+function parseBody(body: Partial<DatabasesRequest>): DatabasesRequest {
   const mongoUri = typeof body.mongoUri === 'string' ? body.mongoUri.trim() : '';
   const preconfiguredMongoUriId =
     typeof body.preconfiguredMongoUriId === 'string' ? body.preconfiguredMongoUriId.trim() : '';
-  const databaseName = typeof body.databaseName === 'string' ? body.databaseName.trim() : '';
 
-  return { mongoUri, preconfiguredMongoUriId, databaseName };
+  return { mongoUri, preconfiguredMongoUriId };
 }
 
 export async function POST(request: Request) {
   try {
-    const requestBody = (await request.json()) as Partial<CollectionsRequest>;
-    const { mongoUri, preconfiguredMongoUriId, databaseName } = parseBody(requestBody);
+    if (!(await getAdminSession())) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const requestBody = (await request.json()) as Partial<DatabasesRequest>;
+    const { mongoUri, preconfiguredMongoUriId } = parseBody(requestBody);
 
     const resolved = resolveMongoConnectionUri(mongoUri, preconfiguredMongoUriId);
 
@@ -32,31 +35,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: resolved.error }, { status: resolved.status });
     }
 
-    if (!databaseName) {
-      return NextResponse.json({ error: 'Database name is required' }, { status: 400 });
-    }
-
     const client = new MongoClient(resolved.uri);
 
     try {
       await client.connect();
-      const db = client.db(databaseName);
-      const collections = await db.listCollections({}, { nameOnly: true }).toArray();
-      const collectionNames = collections
-        .map((collection) => collection.name)
+      const adminDb = client.db().admin();
+      const { databases } = await adminDb.listDatabases({ nameOnly: true });
+      const databaseNames = (databases ?? [])
+        .map((database) => database.name)
         .filter((name): name is string => Boolean(name))
         .sort((a, b) => a.localeCompare(b));
 
-      return NextResponse.json({ collections: collectionNames });
+      return NextResponse.json({ databases: databaseNames });
     } finally {
       await client.close();
     }
   } catch (error) {
-    console.error('Failed to list collections:', error);
+    console.error('Failed to list databases:', error);
     const message = error instanceof Error ? error.message : 'Unknown error';
     return NextResponse.json(
       {
-        error: 'Failed to load collections',
+        error: 'Failed to load databases',
         message
       },
       { status: 500 }
