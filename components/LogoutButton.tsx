@@ -34,10 +34,13 @@ export default function LogoutButton() {
       type="button"
       onClick={handleLogout}
       disabled={isLoading}
-      className="rounded border border-transparent bg-gray-900 px-3 py-1.5 text-sm font-medium text-white transition hover:bg-gray-700 disabled:cursor-not-allowed disabled:bg-gray-500"
+      className="group inline-flex items-center gap-2 rounded-full border border-slate-900/10 bg-slate-900 px-4 py-2 text-xs font-semibold uppercase tracking-wide text-white shadow-lg shadow-indigo-500/20 transition hover:bg-slate-800 hover:shadow-indigo-500/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-900 disabled:cursor-not-allowed disabled:border-slate-300 disabled:bg-slate-400"
       aria-label="Se déconnecter"
     >
-      {isLoading ? 'Déconnexion…' : 'Se déconnecter'}
+      <span className="relative flex h-1.5 w-1.5">
+        <span className="absolute inset-0 rounded-full bg-white/60 opacity-60 transition group-hover:opacity-90" />
+      </span>
+      <span>{isLoading ? 'Déconnexion…' : 'Se déconnecter'}</span>
     </button>
   );
 }
