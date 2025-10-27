@@ -66,12 +66,7 @@ export default function LoginForm() {
       className="login-card"
     >
       <div className="login-card__intro">
-        <p className="login-card__tag">Accès sécurisé</p>
         <h1 className="login-card__title">Connexion administrateur</h1>
-        <p className="login-card__subtitle">
-          Saisissez vos identifiants pour accéder aux outils d&apos;extraction et de supervision. Vos informations restent
-          chiffrées et protégées.
-        </p>
       </div>
 
       <div className="login-card__fields">
@@ -121,9 +116,6 @@ export default function LoginForm() {
             </span>
             <span className="login-checkbox__text">Se souvenir de moi</span>
           </span>
-          <span className="login-checkbox__status">
-            {formState.rememberMe ? 'Session prolongée activée' : 'Session standard'}
-          </span>
         </label>
 
         {error && (
@@ -141,13 +133,6 @@ export default function LoginForm() {
         </button>
       </div>
 
-      <div className="login-meta">
-        <span className="login-meta__badge">
-          <span className="login-meta__indicator" aria-hidden="true" />
-          Connexion protégée
-        </span>
-        <span>Besoin d&apos;aide ? Contactez votre administrateur principal.</span>
-      </div>
     </form>
   );
 }

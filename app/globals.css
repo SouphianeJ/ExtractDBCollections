@@ -263,27 +263,11 @@ main.page {
   margin-bottom: 2rem;
 }
 
-.login-card__tag {
-  margin: 0;
-  font-size: 0.7rem;
-  font-weight: 700;
-  letter-spacing: 0.35em;
-  text-transform: uppercase;
-  color: #4338ca;
-}
-
 .login-card__title {
   margin: 0.75rem 0 0;
   font-size: 2.25rem;
   font-weight: 700;
   color: #0f172a;
-}
-
-.login-card__subtitle {
-  margin: 0.75rem 0 0;
-  font-size: 0.95rem;
-  line-height: 1.6;
-  color: #475569;
 }
 
 .login-card__fields {
@@ -333,15 +317,14 @@ main.page {
 .login-checkbox {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
+  justify-content: flex-start;
+  gap: 0.9rem;
   padding: 0.85rem 1.1rem;
   border-radius: 20px;
   border: 1px solid rgba(129, 140, 248, 0.35);
   background: rgba(99, 102, 241, 0.08);
   font-size: 0.9rem;
   color: #334155;
-  flex-wrap: wrap;
 }
 
 .login-checkbox__main {
@@ -401,12 +384,6 @@ main.page {
   color: #1f2937;
 }
 
-.login-checkbox__status {
-  font-size: 0.75rem;
-  font-weight: 600;
-  color: #4338ca;
-}
-
 .login-error {
   margin: 0;
   padding: 0.9rem 1rem;
@@ -444,36 +421,6 @@ main.page {
   box-shadow: 0 10px 24px rgba(148, 163, 184, 0.25);
 }
 
-.login-meta {
-  margin-top: 2.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 1rem;
-  flex-wrap: wrap;
-  font-size: 0.8rem;
-  color: #64748b;
-}
-
-.login-meta__badge {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.35rem 0.85rem;
-  border-radius: 9999px;
-  border: 1px solid #e2e8f0;
-  background: #ffffff;
-  font-weight: 600;
-  color: #1f2937;
-}
-
-.login-meta__indicator {
-  width: 10px;
-  height: 10px;
-  border-radius: 9999px;
-  background: #34d399;
-}
-
 @media (max-width: 600px) {
   .login-page {
     padding: 3rem 1.25rem;
@@ -489,6 +436,233 @@ main.page {
 
   .login-checkbox {
     align-items: flex-start;
+  }
+}
+
+.admin-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%);
+}
+
+.admin-header {
+  border-bottom: 1px solid rgba(148, 163, 184, 0.25);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(8px);
+}
+
+.admin-header__inner {
+  margin: 0 auto;
+  width: 100%;
+  max-width: 1040px;
+  padding: 2.5rem 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5rem;
+}
+
+.admin-header__intro {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  max-width: 520px;
+}
+
+.admin-header__badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0.9rem;
+  border-radius: 9999px;
+  background: #eef2ff;
+  color: #4338ca;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+}
+
+.status-indicator {
+  width: 0.65rem;
+  height: 0.65rem;
+  border-radius: 9999px;
+  flex-shrink: 0;
+}
+
+.status-indicator--info {
+  background: #6366f1;
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.2);
+}
+
+.status-indicator--success {
+  background: #10b981;
+  box-shadow: 0 0 0 4px rgba(16, 185, 129, 0.25);
+}
+
+.admin-header__title {
+  margin: 0;
+  font-size: 2.1rem;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.admin-header__description {
+  margin: 0;
+  font-size: 0.95rem;
+  line-height: 1.7;
+  color: #475569;
+}
+
+.admin-session {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  color: #475569;
+}
+
+.admin-session__status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  align-self: flex-start;
+  padding: 0.5rem 1.1rem;
+  border-radius: 9999px;
+  background: #ecfdf5;
+  color: #047857;
+  font-weight: 600;
+}
+
+.admin-session__meta {
+  margin: 0;
+  display: grid;
+  gap: 0.4rem;
+}
+
+.admin-session__meta dt {
+  font-size: 0.7rem;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.admin-session__meta dd {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.admin-session__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.admin-session__security {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 0.9rem;
+  border-radius: 9999px;
+  border: 1px solid #cbd5f5;
+  background: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #475569;
+}
+
+.logout-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 1.35rem;
+  border-radius: 9999px;
+  border: 1px solid #1f2937;
+  background: linear-gradient(135deg, #1f2937 0%, #0f172a 100%);
+  color: #f8fafc;
+  font-size: 0.75rem;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease;
+}
+
+.logout-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  box-shadow: 0 12px 24px rgba(30, 41, 59, 0.3);
+  filter: brightness(1.03);
+}
+
+.logout-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.logout-button:focus-visible {
+  outline: 2px solid #6366f1;
+  outline-offset: 2px;
+}
+
+.logout-button__indicator {
+  width: 0.55rem;
+  height: 0.55rem;
+  border-radius: 9999px;
+  background: #34d399;
+  box-shadow: 0 0 0 4px rgba(52, 211, 153, 0.25);
+}
+
+.logout-button__label {
+  white-space: nowrap;
+}
+
+.admin-main {
+  width: 100%;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 3rem 1.5rem 4rem;
+  flex: 1;
+}
+
+.admin-main__card {
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(148, 163, 184, 0.25);
+  border-radius: 24px;
+  box-shadow: 0 24px 60px -32px rgba(15, 23, 42, 0.35);
+  backdrop-filter: blur(6px);
+  padding: 2.5rem;
+}
+
+.admin-dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.admin-dashboard__intro {
+  margin: 0;
+  font-size: 1rem;
+  line-height: 1.6;
+  color: #475569;
+}
+
+@media (min-width: 960px) {
+  .admin-header__inner {
+    flex-direction: row;
+    align-items: center;
+    justify-content: space-between;
+    gap: 3rem;
+  }
+
+  .admin-session {
+    align-items: flex-end;
+    text-align: right;
+  }
+
+  .admin-session__controls {
+    justify-content: flex-end;
   }
 }
 

@@ -9,12 +9,11 @@ export default function AdminHomePage() {
   const preconfiguredOptions = getPreconfiguredMongoUris().map(mapToOption);
 
   return (
-    <div className="space-y-6">
-      <p className="text-base text-gray-700">
-        Utilisez l&apos;outil ci-dessous pour extraire les collections MongoDB et les télécharger sous forme de
-        fichiers JSON ou ZIP.
+    <section className="admin-dashboard">
+      <p className="admin-dashboard__intro">
+        Utilisez l&apos;outil ci-dessous pour extraire les collections MongoDB et les télécharger sous forme de fichiers JSON ou ZIP.
       </p>
       <ExtractorForm preconfiguredOptions={preconfiguredOptions} />
-    </div>
+    </section>
   );
 }
