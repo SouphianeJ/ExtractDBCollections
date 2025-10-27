@@ -1,6 +1,7 @@
 'use client';
 
 import { ChangeEvent, FocusEvent, FormEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 export type MongoUriOption = {
   id: string;
@@ -38,6 +39,7 @@ const initialForm: ExtractionFormData = {
 };
 
 export default function ExtractorForm({ preconfiguredOptions }: ExtractorFormProps) {
+  const router = useRouter();
   const hasPreconfiguredOptions = preconfiguredOptions.length > 0;
   const defaultMongoUriSelection = hasPreconfiguredOptions ? preconfiguredOptions[0].id : 'custom';
 
@@ -108,6 +110,14 @@ export default function ExtractorForm({ preconfiguredOptions }: ExtractorFormPro
     isLoadingDatabases ||
     (!formData.allCollections && isLoadingCollections) ||
     (isUsingCustomMongoUri ? !trimmedMongoUri : !selectedPreconfiguredId) ||
+    !trimmedDatabaseName ||
+    (!formData.allCollections && !trimmedCollectionName);
+
+  const isViewDisabled =
+    isLoading ||
+    isLoadingDatabases ||
+    (!formData.allCollections && isLoadingCollections) ||
+    !hasConnectionDetails ||
     !trimmedDatabaseName ||
     (!formData.allCollections && !trimmedCollectionName);
 
@@ -482,6 +492,33 @@ export default function ExtractorForm({ preconfiguredOptions }: ExtractorFormPro
     }
   };
 
+  const handleViewClick = () => {
+    setTouched({ mongoUri: isUsingCustomMongoUri, databaseName: true, collectionName: !formData.allCollections });
+
+    if (isViewDisabled) {
+      return;
+    }
+
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    const params = new URLSearchParams();
+    params.set('databaseName', trimmedDatabaseName);
+    params.set('allCollections', String(formData.allCollections));
+
+    if (!formData.allCollections) {
+      params.set('collectionName', trimmedCollectionName);
+    }
+
+    if (isUsingCustomMongoUri) {
+      params.set('mongoUri', trimmedMongoUri);
+    } else if (selectedPreconfiguredId) {
+      params.set('preconfiguredMongoUriId', selectedPreconfiguredId);
+    }
+
+    router.push(`/view?${params.toString()}`);
+  };
+
   return (
     <main className="page">
       <div className="container">
@@ -619,9 +656,19 @@ export default function ExtractorForm({ preconfiguredOptions }: ExtractorFormPro
           {errorMessage && <div className="alert alert-error">{errorMessage}</div>}
           {successMessage && <div className="alert alert-success">{successMessage}</div>}
 
-          <button className="submit-button" type="submit" disabled={isSubmitDisabled}>
-            {isLoading ? 'Extracting…' : 'Extract & Download'}
-          </button>
+          <div className="button-group">
+            <button className="submit-button" type="submit" disabled={isSubmitDisabled}>
+              {isLoading ? 'Extracting…' : 'Extract & Download'}
+            </button>
+            <button
+              className="secondary-button view-button"
+              type="button"
+              onClick={handleViewClick}
+              disabled={isViewDisabled}
+            >
+              View collections
+            </button>
+          </div>
         </form>
 
         <div className="info-box">

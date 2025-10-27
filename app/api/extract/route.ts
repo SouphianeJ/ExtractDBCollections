@@ -4,6 +4,7 @@ import archiver from 'archiver';
 import { PassThrough } from 'stream';
 
 import { resolveMongoConnectionUri } from '../../../lib/preconfiguredMongoUris';
+import { getRandomDocuments } from '../../../lib/mongoHelpers';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -31,21 +32,6 @@ function generateTimestampSuffix(): string {
   const minutes = String(now.getMinutes()).padStart(2, '0');
 
   return `${year}${month}${day}_${hours}${minutes}`;
-}
-
-async function getRandomDocuments(db: Db, collectionName: string, limit: number) {
-  const collection = db.collection(collectionName);
-  const count = await collection.countDocuments();
-
-  if (count === 0) {
-    return [];
-  }
-
-  if (count <= limit) {
-    return collection.find({}).toArray();
-  }
-
-  return collection.aggregate([{ $sample: { size: limit } }]).toArray();
 }
 
 async function extractFromCollection(db: Db, collectionName: string, limitTo3: boolean): Promise<DocumentData> {
