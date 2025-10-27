@@ -520,7 +520,7 @@ export default function ExtractorForm({ preconfiguredOptions }: ExtractorFormPro
       params.set('preconfiguredMongoUriId', selectedPreconfiguredId);
     }
 
-    router.push(`/view?${params.toString()}`);
+    router.push(`/admin/view?${params.toString()}`);
   };
 
   return (

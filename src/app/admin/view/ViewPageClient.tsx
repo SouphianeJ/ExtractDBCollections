@@ -3,7 +3,7 @@
 import { ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
-import CopyToClipboardButton from '../../components/CopyToClipboardButton';
+import CopyToClipboardButton from '@/components/CopyToClipboardButton';
 
 type CollectionPreview = {
   name: string;
@@ -179,7 +179,7 @@ export default function ViewPage() {
           <button className="secondary-button refresh-button" onClick={handleRefresh} disabled={isLoading}>
             {isLoading ? 'Refreshing…' : 'Refresh samples'}
           </button>
-          <Link className="link-button" href="/">
+          <Link className="link-button" href="/admin">
             Back to extractor
           </Link>
         </div>

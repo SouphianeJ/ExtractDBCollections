@@ -411,3 +411,124 @@ main.page {
     justify-content: flex-start;
   }
 }
+
+.auth-page {
+  align-items: center;
+  background: linear-gradient(145deg, #e0e7ff, #f8fafc);
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  padding: 2.5rem 2.25rem;
+  background-color: rgba(255, 255, 255, 0.96);
+  border-radius: 16px;
+  box-shadow: 0 20px 45px rgba(59, 130, 246, 0.18);
+  backdrop-filter: blur(8px);
+}
+
+.auth-card h1 {
+  margin-top: 0;
+  margin-bottom: 0.75rem;
+  font-size: 2rem;
+  text-align: center;
+}
+
+.auth-card p {
+  margin-top: 0;
+  margin-bottom: 2rem;
+  text-align: center;
+  color: #64748b;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.remember-toggle {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 500;
+  color: #1e293b;
+}
+
+.remember-toggle input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+}
+
+.logout-button {
+  padding: 0.65rem 1.25rem;
+  border-radius: 999px;
+  border: 1px solid #cbd5f5;
+  background-color: #ffffff;
+  color: #1d4ed8;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease-in-out;
+}
+
+.logout-button:hover:not(:disabled) {
+  background-color: #eff6ff;
+  border-color: #93c5fd;
+  transform: translateY(-1px);
+}
+
+.logout-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.admin-shell {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.admin-header {
+  background: rgba(255, 255, 255, 0.92);
+  border-bottom: 1px solid #e2e8f0;
+  backdrop-filter: blur(8px);
+}
+
+.admin-header__content {
+  max-width: 1100px;
+  margin: 0 auto;
+  padding: 1.25rem 1.75rem;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.admin-header__titles h1 {
+  margin: 0;
+  font-size: 1.4rem;
+  color: #1e293b;
+}
+
+.admin-header__titles p {
+  margin: 0.35rem 0 0 0;
+  color: #64748b;
+  font-size: 0.95rem;
+}
+
+.admin-main {
+  flex: 1;
+  width: 100%;
+}
+
+@media (max-width: 640px) {
+  .auth-card {
+    padding: 2rem 1.5rem;
+  }
+
+  .admin-header__content {
+    padding: 1rem 1.25rem;
+  }
+}

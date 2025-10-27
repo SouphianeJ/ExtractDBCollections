@@ -1,8 +1,9 @@
 import { NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
 
-import { resolveMongoConnectionUri } from '../../../lib/preconfiguredMongoUris';
-import { getRandomDocuments, serializeDocuments } from '../../../lib/mongoHelpers';
+import { getAdminSession } from '@/lib/auth/session';
+import { resolveMongoConnectionUri } from '@/lib/preconfiguredMongoUris';
+import { getRandomDocuments, serializeDocuments } from '@/lib/mongoHelpers';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -35,6 +36,10 @@ function parseBody(body: Partial<ViewRequest>): ViewRequest {
 
 export async function POST(request: Request) {
   try {
+    if (!(await getAdminSession())) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const requestBody = (await request.json()) as Partial<ViewRequest>;
     const { mongoUri, preconfiguredMongoUriId, databaseName, collectionName, allCollections } =
       parseBody(requestBody);
