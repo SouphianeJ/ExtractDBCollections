@@ -1,17 +1,13 @@
-import ExtractorForm, { MongoUriOption } from '../components/ExtractorForm';
-import PasswordGate from '../components/PasswordGate';
-import { getPreconfiguredMongoUris } from '../lib/preconfiguredMongoUris';
+import { redirect } from 'next/navigation';
 
-function mapToOption(option: { id: string; name: string }): MongoUriOption {
-  return { id: option.id, name: option.name };
-}
+import { getAdminSession } from '../src/lib/auth/session';
 
-export default function HomePage() {
-  const preconfiguredOptions = getPreconfiguredMongoUris().map(mapToOption);
+export default async function HomePage() {
+  const session = await getAdminSession();
 
-  return (
-    <PasswordGate>
-      <ExtractorForm preconfiguredOptions={preconfiguredOptions} />
-    </PasswordGate>
-  );
+  if (session) {
+    redirect('/admin');
+  }
+
+  redirect('/login');
 }

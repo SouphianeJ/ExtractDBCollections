@@ -5,6 +5,7 @@ import { PassThrough } from 'stream';
 
 import { resolveMongoConnectionUri } from '../../../lib/preconfiguredMongoUris';
 import { getRandomDocuments } from '../../../lib/mongoHelpers';
+import { getAdminSession } from '../../../src/lib/auth/session';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -112,6 +113,12 @@ function parseBody(body: Partial<ExtractionRequest>): ExtractionRequest {
 
 export async function POST(request: Request) {
   try {
+    const session = await getAdminSession();
+
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const requestBody = (await request.json()) as Partial<ExtractionRequest>;
     const { mongoUri, databaseName, collectionName, limitTo3, allCollections, preconfiguredMongoUriId } =
       parseBody(requestBody);

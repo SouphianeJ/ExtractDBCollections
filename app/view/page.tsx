@@ -1,8 +1,16 @@
 import { Suspense } from 'react';
+import { redirect } from 'next/navigation';
 
 import ViewPageClient from './ViewPageClient';
+import { getAdminSession } from '../../src/lib/auth/session';
 
-export default function ViewPage() {
+export default async function ViewPage() {
+  const session = await getAdminSession();
+
+  if (!session) {
+    redirect('/login?from=/view');
+  }
+
   return (
     <Suspense
       fallback={

@@ -3,6 +3,7 @@ import { MongoClient } from 'mongodb';
 
 import { resolveMongoConnectionUri } from '../../../lib/preconfiguredMongoUris';
 import { getRandomDocuments, serializeDocuments } from '../../../lib/mongoHelpers';
+import { getAdminSession } from '../../../src/lib/auth/session';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -35,6 +36,12 @@ function parseBody(body: Partial<ViewRequest>): ViewRequest {
 
 export async function POST(request: Request) {
   try {
+    const session = await getAdminSession();
+
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const requestBody = (await request.json()) as Partial<ViewRequest>;
     const { mongoUri, preconfiguredMongoUriId, databaseName, collectionName, allCollections } =
       parseBody(requestBody);

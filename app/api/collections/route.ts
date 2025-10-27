@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
 
 import { resolveMongoConnectionUri } from '../../../lib/preconfiguredMongoUris';
+import { getAdminSession } from '../../../src/lib/auth/session';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -23,6 +24,12 @@ function parseBody(body: Partial<CollectionsRequest>): CollectionsRequest {
 
 export async function POST(request: Request) {
   try {
+    const session = await getAdminSession();
+
+    if (!session) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const requestBody = (await request.json()) as Partial<CollectionsRequest>;
     const { mongoUri, preconfiguredMongoUriId, databaseName } = parseBody(requestBody);
 
