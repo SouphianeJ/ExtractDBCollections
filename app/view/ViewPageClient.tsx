@@ -133,7 +133,12 @@ export default function ViewPage() {
       return;
     }
 
-    const preferredCollection = params.collectionName || collections[0]?.name || '';
+    const availableNames = collections.map((collection) => collection.name);
+    const preferredCollection =
+      params.collectionName && availableNames.includes(params.collectionName)
+        ? params.collectionName
+        : availableNames[0] ?? '';
+
     setSelectedCollectionName(preferredCollection);
   }, [collections, params.collectionName]);
 
@@ -152,7 +157,7 @@ export default function ViewPage() {
 
   const databaseSummary = params.databaseName ? `Database: ${params.databaseName}` : '';
   const collectionSummary = params.allCollections
-    ? 'Showing all collections'
+    ? `Showing all collections${params.collectionName ? ` (focused on ${params.collectionName})` : ''}`
     : params.collectionName
     ? `Collection: ${params.collectionName}`
     : '';

@@ -116,10 +116,8 @@ export default function ExtractorForm({ preconfiguredOptions }: ExtractorFormPro
   const isViewDisabled =
     isLoading ||
     isLoadingDatabases ||
-    (!formData.allCollections && isLoadingCollections) ||
     !hasConnectionDetails ||
-    !trimmedDatabaseName ||
-    (!formData.allCollections && !trimmedCollectionName);
+    !trimmedDatabaseName;
 
   const isDatabaseSelectDisabled = isLoading || isLoadingDatabases || !hasConnectionDetails;
   const hasCollectionOptions = collectionOptions.length > 0;
@@ -493,7 +491,13 @@ export default function ExtractorForm({ preconfiguredOptions }: ExtractorFormPro
   };
 
   const handleViewClick = () => {
-    setTouched({ mongoUri: isUsingCustomMongoUri, databaseName: true, collectionName: !formData.allCollections });
+    const hasCollectionSelection = Boolean(trimmedCollectionName);
+
+    setTouched({
+      mongoUri: isUsingCustomMongoUri,
+      databaseName: true,
+      collectionName: hasCollectionSelection && !formData.allCollections
+    });
 
     if (isViewDisabled) {
       return;
@@ -504,9 +508,9 @@ export default function ExtractorForm({ preconfiguredOptions }: ExtractorFormPro
 
     const params = new URLSearchParams();
     params.set('databaseName', trimmedDatabaseName);
-    params.set('allCollections', String(formData.allCollections));
+    params.set('allCollections', 'true');
 
-    if (!formData.allCollections) {
+    if (hasCollectionSelection) {
       params.set('collectionName', trimmedCollectionName);
     }
 
