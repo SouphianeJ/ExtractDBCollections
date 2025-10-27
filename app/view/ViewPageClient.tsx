@@ -3,6 +3,7 @@
 import { ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
+import CopyToClipboardButton from '../../components/CopyToClipboardButton';
 
 type CollectionPreview = {
   name: string;
@@ -210,11 +211,16 @@ export default function ViewPage() {
               <div className="documents-container">
                 <h2>{activeCollection.name}</h2>
                 {activeCollection.documents.length ? (
-                  activeCollection.documents.map((document, index) => (
-                    <div key={index} className="document-card">
-                      <pre>{JSON.stringify(document, null, 2)}</pre>
-                    </div>
-                  ))
+                  activeCollection.documents.map((document, index) => {
+                    const json = JSON.stringify(document, null, 2);
+
+                    return (
+                      <div key={index} className="document-card">
+                        <CopyToClipboardButton text={json} className="document-copy-button" />
+                        <pre>{json}</pre>
+                      </div>
+                    );
+                  })
                 ) : (
                   <div className="empty-state">
                     <p>No documents found in this collection.</p>
