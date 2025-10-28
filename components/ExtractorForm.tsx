@@ -119,6 +119,14 @@ export default function ExtractorForm({ preconfiguredOptions }: ExtractorFormPro
     !hasConnectionDetails ||
     !trimmedDatabaseName;
 
+  const isEditDisabled =
+    isLoading ||
+    isLoadingDatabases ||
+    !hasConnectionDetails ||
+    !trimmedDatabaseName ||
+    formData.allCollections ||
+    !trimmedCollectionName;
+
   const isDatabaseSelectDisabled = isLoading || isLoadingDatabases || !hasConnectionDetails;
   const hasCollectionOptions = collectionOptions.length > 0;
   const isCollectionSelectDisabled =
@@ -523,6 +531,33 @@ export default function ExtractorForm({ preconfiguredOptions }: ExtractorFormPro
     router.push(`/view?${params.toString()}`);
   };
 
+  const handleEditClick = () => {
+    setTouched({
+      mongoUri: isUsingCustomMongoUri,
+      databaseName: true,
+      collectionName: true
+    });
+
+    if (isEditDisabled) {
+      return;
+    }
+
+    setErrorMessage('');
+    setSuccessMessage('');
+
+    const params = new URLSearchParams();
+    params.set('databaseName', trimmedDatabaseName);
+    params.set('collectionName', trimmedCollectionName);
+
+    if (isUsingCustomMongoUri) {
+      params.set('mongoUri', trimmedMongoUri);
+    } else if (selectedPreconfiguredId) {
+      params.set('preconfiguredMongoUriId', selectedPreconfiguredId);
+    }
+
+    router.push(`/edit?${params.toString()}`);
+  };
+
   return (
     <main className="page">
       <div className="container">
@@ -671,6 +706,14 @@ export default function ExtractorForm({ preconfiguredOptions }: ExtractorFormPro
               disabled={isViewDisabled}
             >
               View collections
+            </button>
+            <button
+              className="secondary-button view-button"
+              type="button"
+              onClick={handleEditClick}
+              disabled={isEditDisabled}
+            >
+              Add document to collection
             </button>
           </div>
         </form>
