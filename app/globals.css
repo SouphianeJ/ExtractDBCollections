@@ -861,7 +861,7 @@ main.page {
 
 @media (max-width: 640px) {
   main.page {
-    padding: 1.5rem 1rem;
+    padding: 1.5rem 0rem;
   }
 
   .container {
