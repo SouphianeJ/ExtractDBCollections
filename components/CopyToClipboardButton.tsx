@@ -5,13 +5,18 @@ import { useCallback, useState } from 'react';
 type CopyToClipboardButtonProps = {
   text: string;
   className?: string;
+  disabled?: boolean;
 };
 
-export default function CopyToClipboardButton({ text, className }: CopyToClipboardButtonProps) {
+export default function CopyToClipboardButton({ text, className, disabled = false }: CopyToClipboardButtonProps) {
   const [isCopied, setIsCopied] = useState(false);
   const [hasError, setHasError] = useState(false);
 
   const handleCopy = useCallback(async () => {
+    if (disabled) {
+      return;
+    }
+
     try {
       await navigator.clipboard.writeText(text);
       setHasError(false);
@@ -22,7 +27,7 @@ export default function CopyToClipboardButton({ text, className }: CopyToClipboa
       setHasError(true);
       setIsCopied(false);
     }
-  }, [text]);
+  }, [disabled, text]);
 
   const label = hasError ? 'Copy failed' : isCopied ? 'Copied!' : 'Copy JSON';
   const classes = ['copy-button'];
@@ -40,7 +45,14 @@ export default function CopyToClipboardButton({ text, className }: CopyToClipboa
   }
 
   return (
-    <button type="button" className={classes.join(' ')} onClick={handleCopy} aria-live="polite" aria-label={label}>
+    <button
+      type="button"
+      className={classes.join(' ')}
+      onClick={handleCopy}
+      aria-live="polite"
+      aria-label={label}
+      disabled={disabled}
+    >
       {label}
     </button>
   );
