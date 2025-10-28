@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 
 import CopyToClipboardButton from '../../components/CopyToClipboardButton';
+import CollectionTargetSelector, { CollectionMode } from './CollectionTargetSelector';
 
 type EditParams = {
   mongoUri: string;
@@ -46,14 +47,6 @@ function formatDocument(document: unknown): string {
 
 export default function EditPageClient() {
   const searchParams = useSearchParams();
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [infoMessage, setInfoMessage] = useState('');
-  const [documentJson, setDocumentJson] = useState('');
-  const [refreshKey, setRefreshKey] = useState(0);
-
   const params = useMemo<EditParams>(() => {
     const mongoUri = searchParams.get('mongoUri') ?? '';
     const preconfiguredMongoUriId = searchParams.get('preconfiguredMongoUriId') ?? '';
@@ -63,7 +56,33 @@ export default function EditPageClient() {
     return { mongoUri, preconfiguredMongoUriId, databaseName, collectionName };
   }, [searchParams]);
 
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [infoMessage, setInfoMessage] = useState('');
+  const [documentJson, setDocumentJson] = useState('');
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [collectionMode, setCollectionMode] = useState<CollectionMode>(
+    params.collectionName ? 'existing' : 'new'
+  );
+  const [newCollectionName, setNewCollectionName] = useState('');
+
   useEffect(() => {
+    if (!params.collectionName && collectionMode === 'existing') {
+      setCollectionMode('new');
+    }
+  }, [params.collectionName, collectionMode]);
+
+  useEffect(() => {
+    if (collectionMode === 'new') {
+      setIsLoading(false);
+      setErrorMessage('');
+      setInfoMessage('Provide the name of the new collection and the JSON for its first document.');
+      setDocumentJson((current) => (current.trim() ? current : '{\n\n}'));
+      return;
+    }
+
     if (!params.databaseName || !params.collectionName) {
       setErrorMessage('Missing database or collection information. Please go back and try again.');
       setInfoMessage('');
@@ -151,7 +170,19 @@ export default function EditPageClient() {
       isCancelled = true;
       controller.abort();
     };
-  }, [params, refreshKey]);
+  }, [collectionMode, params, refreshKey]);
+
+  const handleCollectionModeChange = (mode: CollectionMode) => {
+    setCollectionMode(mode);
+    setSuccessMessage('');
+    setErrorMessage('');
+  };
+
+  const handleNewCollectionNameChange = (value: string) => {
+    setNewCollectionName(value);
+    setSuccessMessage('');
+    setErrorMessage('');
+  };
 
   const handleDocumentChange = (event: ChangeEvent<HTMLTextAreaElement>) => {
     setDocumentJson(event.target.value);
@@ -160,6 +191,10 @@ export default function EditPageClient() {
   };
 
   const handleRefreshSample = () => {
+    if (collectionMode !== 'existing') {
+      return;
+    }
+
     setRefreshKey((value) => value + 1);
   };
 
@@ -169,8 +204,17 @@ export default function EditPageClient() {
     setErrorMessage('');
     setSuccessMessage('');
 
-    if (!params.databaseName || !params.collectionName) {
-      setErrorMessage('Database and collection are required to insert a document.');
+    if (!params.databaseName) {
+      setErrorMessage('Database name is required to insert a document.');
+      return;
+    }
+
+    const targetCollectionName = (
+      collectionMode === 'existing' ? params.collectionName : newCollectionName
+    ).trim();
+
+    if (!targetCollectionName) {
+      setErrorMessage('Collection name is required to insert a document.');
       return;
     }
 
@@ -195,7 +239,7 @@ export default function EditPageClient() {
       mongoUri: params.mongoUri,
       preconfiguredMongoUriId: params.preconfiguredMongoUriId,
       databaseName: params.databaseName,
-      collectionName: params.collectionName,
+      collectionName: targetCollectionName,
       action: 'insert' as const,
       document: parsedDocument
     };
@@ -224,7 +268,11 @@ export default function EditPageClient() {
         throw new Error('The server did not confirm the document insertion.');
       }
 
-      setSuccessMessage('Document inserted successfully.');
+      const successText =
+        collectionMode === 'new'
+          ? 'Document inserted successfully. The collection will be created if it did not already exist.'
+          : 'Document inserted successfully.';
+      setSuccessMessage(successText);
       setErrorMessage('');
     } catch (error) {
       console.error('Failed to insert document:', error);
@@ -237,15 +285,25 @@ export default function EditPageClient() {
   };
 
   const databaseSummary = params.databaseName ? `Database: ${params.databaseName}` : '';
-  const collectionSummary = params.collectionName ? `Collection: ${params.collectionName}` : '';
+  const trimmedNewCollectionName = newCollectionName.trim();
+  const isExistingMode = collectionMode === 'existing';
+  const collectionSummary = isExistingMode
+    ? params.collectionName
+      ? `Collection: ${params.collectionName}`
+      : ''
+    : `New collection: ${trimmedNewCollectionName || 'Provide a name below'}`;
   const hasDocumentText = documentJson.trim().length > 0;
+  const canLoadSample = isExistingMode;
+  const headerDescription = isExistingMode
+    ? 'Use the sample JSON below as a template and customize it before inserting.'
+    : 'Provide the collection name and JSON for the first document you want to store.';
 
   return (
     <main className="page edit-page">
       <div className="container">
         <div className="header">
           <h1>Add a document to your collection</h1>
-          <p>Use the sample JSON below as a template and customize it before inserting.</p>
+          <p>{headerDescription}</p>
         </div>
 
         <div className="connection-summary">
@@ -254,9 +312,19 @@ export default function EditPageClient() {
         </div>
 
         <div className="view-actions">
-          <button className="secondary-button refresh-button" onClick={handleRefreshSample} disabled={isLoading || isSubmitting}>
-            {isLoading ? 'Loading sample…' : 'Load another sample'}
-          </button>
+          {canLoadSample ? (
+            <button
+              className="secondary-button refresh-button"
+              onClick={handleRefreshSample}
+              disabled={isLoading || isSubmitting}
+            >
+              {isLoading ? 'Loading sample…' : 'Load another sample'}
+            </button>
+          ) : (
+            <div className="view-actions__info">
+              Sample templates are unavailable when creating a new collection.
+            </div>
+          )}
           <Link className="link-button" href="/">
             Back to extractor
           </Link>
@@ -267,6 +335,14 @@ export default function EditPageClient() {
         {successMessage && <div className="alert alert-success">{successMessage}</div>}
 
         <form className="extraction-form" onSubmit={handleSubmit}>
+          <CollectionTargetSelector
+            mode={collectionMode}
+            existingCollectionName={params.collectionName}
+            newCollectionName={newCollectionName}
+            onModeChange={handleCollectionModeChange}
+            onNewCollectionNameChange={handleNewCollectionNameChange}
+            disabled={isLoading || isSubmitting}
+          />
           <div className="form-group">
             <label htmlFor="documentJson">JSON document</label>
             <textarea

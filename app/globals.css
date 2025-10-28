@@ -64,6 +64,59 @@ main.page {
   gap: 0.5rem;
 }
 
+.collection-target-selector {
+  padding: 1.25rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  background-color: #f8fafc;
+  gap: 1rem;
+}
+
+.collection-target-selector legend {
+  margin: 0;
+  font-weight: 600;
+  font-size: 1rem;
+  color: #1e293b;
+}
+
+.collection-target-option {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.collection-target-label {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.collection-target-label input[type='radio'] {
+  width: 18px;
+  height: 18px;
+  accent-color: #6366f1;
+}
+
+.collection-target-label-text {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.new-collection-input {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-left: 1.9rem;
+}
+
+.new-collection-input label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
 .form-group label {
   font-weight: 600;
   font-size: 0.95rem;
@@ -730,6 +783,21 @@ main.page {
   flex-wrap: wrap;
   gap: 0.75rem;
   margin-bottom: 1.5rem;
+}
+
+.view-actions__info {
+  flex: 1 1 200px;
+  min-width: 160px;
+  padding: 0.85rem 1rem;
+  border-radius: 8px;
+  border: 1px dashed #cbd5f5;
+  background-color: #f8fafc;
+  color: #475569;
+  font-size: 0.95rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
 .refresh-button {
