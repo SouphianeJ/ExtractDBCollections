@@ -185,6 +185,10 @@ main.page {
   color: #1f2937;
 }
 
+.collection-mode-selector .help-text {
+  margin: 0.35rem 0 0;
+}
+
 .checkbox-label {
   display: flex;
   align-items: flex-start;

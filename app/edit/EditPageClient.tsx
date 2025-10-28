@@ -47,15 +47,6 @@ function formatDocument(document: unknown): string {
 
 export default function EditPageClient() {
   const searchParams = useSearchParams();
-  const [isLoading, setIsLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMessage, setErrorMessage] = useState('');
-  const [successMessage, setSuccessMessage] = useState('');
-  const [infoMessage, setInfoMessage] = useState('');
-  const [documentJson, setDocumentJson] = useState('');
-  const [refreshKey, setRefreshKey] = useState(0);
-  const [collectionMode, setCollectionMode] = useState<CollectionMode>('existing');
-  const [newCollectionName, setNewCollectionName] = useState('');
 
   const params = useMemo<EditParams>(() => {
     const mongoUri = searchParams.get('mongoUri') ?? '';
@@ -66,14 +57,21 @@ export default function EditPageClient() {
     return { mongoUri, preconfiguredMongoUriId, databaseName, collectionName };
   }, [searchParams]);
 
+  const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
+  const [infoMessage, setInfoMessage] = useState('');
+  const [documentJson, setDocumentJson] = useState('');
+  const [refreshKey, setRefreshKey] = useState(0);
+  const [collectionMode, setCollectionMode] = useState<CollectionMode>(() =>
+    params.collectionName ? 'existing' : 'new'
+  );
+  const [newCollectionName, setNewCollectionName] = useState('');
+
   useEffect(() => {
-    if (params.collectionName) {
-      setCollectionMode('existing');
-      setNewCollectionName(params.collectionName);
-    } else {
-      setCollectionMode('new');
-      setNewCollectionName('');
-    }
+    setCollectionMode(params.collectionName ? 'existing' : 'new');
+    setNewCollectionName('');
   }, [params.collectionName]);
 
   useEffect(() => {
