@@ -24,6 +24,67 @@ main.page {
   justify-content: center;
 }
 
+.home-page {
+  background: linear-gradient(135deg, #eef2ff 0%, #f8fafc 50%, #e0f2fe 100%);
+}
+
+.home-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+  margin: 2rem 0 1.5rem;
+}
+
+.home-help-text {
+  text-align: center;
+  color: #64748b;
+  margin: 0;
+}
+
+.search-page {
+  background: linear-gradient(135deg, #ede9fe 0%, #fdf2f8 45%, #eff6ff 100%);
+}
+
+.search-page .container {
+  max-width: 960px;
+}
+
+.search-page__content {
+  display: flex;
+  flex-direction: column;
+  gap: 2rem;
+}
+
+.search-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.search-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: center;
+}
+
+.search-actions .submit-button {
+  flex: 1 1 220px;
+  min-width: 180px;
+}
+
+.search-actions .secondary-button {
+  flex: 1 1 200px;
+  min-width: 180px;
+}
+
+.documents-grid {
+  display: grid;
+  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+}
+
 .container {
   max-width: 800px;
   width: 100%;
@@ -264,16 +325,41 @@ main.page {
   width: 100%;
 }
 
+.primary-button,
 .secondary-button {
   padding: 1rem;
   font-size: 1.05rem;
   font-weight: 600;
+  border-radius: 8px;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+
+.primary-button {
+  color: #ffffff;
+  background-color: #4f46e5;
+  border: 2px solid #4338ca;
+}
+
+.primary-button:hover:not(:disabled) {
+  transform: translateY(-1px);
+  background-color: #4338ca;
+  box-shadow: 0 12px 24px rgba(79, 70, 229, 0.25);
+}
+
+.primary-button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.secondary-button {
   color: #4f46e5;
   background-color: #ffffff;
   border: 2px solid #6366f1;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease, color 0.2s ease;
 }
 
 .secondary-button:hover:not(:disabled) {
