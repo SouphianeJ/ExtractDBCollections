@@ -28,7 +28,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname.startsWith('/admin')) {
+  if (pathname.startsWith('/admin') || pathname.startsWith('/search')) {
     if (!hasSession) {
       const url = request.nextUrl.clone();
       url.pathname = '/login';
@@ -43,5 +43,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/login']
+  matcher: ['/admin/:path*', '/login', '/search']
 };

@@ -58,6 +58,13 @@ main.page {
   gap: 1.5rem;
 }
 
+.search-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
 .form-group {
   display: flex;
   flex-direction: column;
@@ -88,6 +95,16 @@ main.page {
   background-color: #f8fafc;
   color: #94a3b8;
   cursor: not-allowed;
+}
+
+.search-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.search-actions .primary-button {
+  min-width: 200px;
 }
 
 .error {
@@ -736,6 +753,15 @@ main.page {
   display: flex;
   flex-direction: column;
   gap: 1.75rem;
+}
+
+.admin-dashboard__actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.admin-dashboard__actions .link-button {
+  align-self: flex-start;
 }
 
 .admin-dashboard__intro {

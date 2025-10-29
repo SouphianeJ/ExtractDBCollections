@@ -1,3 +1,5 @@
+import Link from 'next/link';
+
 import ExtractorForm, { MongoUriOption } from '../../components/ExtractorForm';
 import { getPreconfiguredMongoUris } from '../../lib/preconfiguredMongoUris';
 
@@ -10,6 +12,11 @@ export default function AdminHomePage() {
 
   return (
     <section className="admin-dashboard">
+      <div className="admin-dashboard__actions">
+        <Link className="link-button" href="/search">
+          Search documents
+        </Link>
+      </div>
       <p className="admin-dashboard__intro">
         Utilisez l&apos;outil ci-dessous pour extraire les collections MongoDB et les télécharger sous forme de fichiers JSON ou ZIP.
       </p>
