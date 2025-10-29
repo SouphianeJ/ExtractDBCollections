@@ -907,6 +907,18 @@ main.page {
   color: #1e293b;
 }
 
+.document-search {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.document-search__results {
+  margin: 0;
+  font-size: 0.9rem;
+  color: #475569;
+}
+
 .document-card {
   position: relative;
   padding: 1rem;
@@ -969,6 +981,13 @@ main.page {
   font-size: 0.9rem;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.document-card mark {
+  background-color: #fef08a;
+  color: inherit;
+  padding: 0 0.15rem;
+  border-radius: 4px;
 }
 
 .loading-state {

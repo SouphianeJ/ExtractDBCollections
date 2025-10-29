@@ -1,6 +1,6 @@
 'use client';
 
-import { ChangeEvent, useCallback, useEffect, useMemo, useState } from 'react';
+import { ChangeEvent, Fragment, ReactNode, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import CopyToClipboardButton from '../../components/CopyToClipboardButton';
@@ -30,6 +30,27 @@ function parseBoolean(value: string | null): boolean {
   return value === 'true' || value === '1' || value.toLowerCase() === 'yes';
 }
 
+function escapeRegExp(text: string): string {
+  return text.replace(/[.*+?^${}()|[\]\\]/g, '\$&');
+}
+
+function highlightMatches(text: string, term: string): ReactNode {
+  if (!term) {
+    return text;
+  }
+
+  const regex = new RegExp(`(${escapeRegExp(term)})`, 'gi');
+  const parts = text.split(regex);
+
+  return parts.map((part, index) =>
+    index % 2 === 1 ? (
+      <mark key={index}>{part}</mark>
+    ) : (
+      <Fragment key={index}>{part}</Fragment>
+    )
+  );
+}
+
 export default function ViewPage() {
   const searchParams = useSearchParams();
   const [isLoading, setIsLoading] = useState(true);
@@ -37,6 +58,7 @@ export default function ViewPage() {
   const [collections, setCollections] = useState<CollectionPreview[]>([]);
   const [selectedCollectionName, setSelectedCollectionName] = useState('');
   const [refreshKey, setRefreshKey] = useState(0);
+  const [documentSearchTerm, setDocumentSearchTerm] = useState('');
 
   const params = useMemo<ViewParams>(() => {
     const mongoUri = searchParams.get('mongoUri') ?? '';
@@ -146,6 +168,10 @@ export default function ViewPage() {
     setSelectedCollectionName(event.target.value);
   };
 
+  useEffect(() => {
+    setDocumentSearchTerm('');
+  }, [selectedCollectionName]);
+
   const handleRefresh = useCallback(() => {
     setRefreshKey((value) => value + 1);
   }, []);
@@ -154,6 +180,34 @@ export default function ViewPage() {
     () => collections.find((collection) => collection.name === selectedCollectionName),
     [collections, selectedCollectionName]
   );
+
+  const normalizedSearchTerm = documentSearchTerm.trim().toLowerCase();
+  const hasSearchTerm = normalizedSearchTerm.length > 0;
+
+  const filteredDocuments = useMemo(() => {
+    if (!activeCollection) {
+      return [];
+    }
+
+    if (!hasSearchTerm) {
+      return activeCollection.documents;
+    }
+
+    return activeCollection.documents.filter((document) => {
+      try {
+        return JSON.stringify(document, null, 2).toLowerCase().includes(normalizedSearchTerm);
+      } catch (error) {
+        console.warn('Unable to stringify document for in-page search.', error);
+        return false;
+      }
+    });
+  }, [activeCollection, hasSearchTerm, normalizedSearchTerm]);
+
+  const handleDocumentSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setDocumentSearchTerm(event.target.value);
+  };
+
+  const highlightTerm = documentSearchTerm.trim();
 
   const databaseSummary = params.databaseName ? `Database: ${params.databaseName}` : '';
   const collectionSummary = params.allCollections
@@ -215,20 +269,42 @@ export default function ViewPage() {
             {activeCollection ? (
               <div className="documents-container">
                 <h2>{activeCollection.name}</h2>
-                {activeCollection.documents.length ? (
-                  activeCollection.documents.map((document, index) => {
+                <div className="document-search form-group">
+                  <label htmlFor="documentSearch">Search within documents</label>
+                  <input
+                    id="documentSearch"
+                    type="text"
+                    className="form-control"
+                    value={documentSearchTerm}
+                    onChange={handleDocumentSearchChange}
+                    placeholder="Find text within the loaded documents"
+                  />
+                  {hasSearchTerm && (
+                    <p className="document-search__results">
+                      {filteredDocuments.length
+                        ? `Found ${filteredDocuments.length} matching document${filteredDocuments.length === 1 ? '' : 's'}.`
+                        : 'No documents match the current search.'}
+                    </p>
+                  )}
+                </div>
+                {filteredDocuments.length ? (
+                  filteredDocuments.map((document, index) => {
                     const json = JSON.stringify(document, null, 2);
 
                     return (
                       <div key={index} className="document-card">
                         <CopyToClipboardButton text={json} className="document-copy-button" />
-                        <pre>{json}</pre>
+                        <pre>{highlightMatches(json, highlightTerm)}</pre>
                       </div>
                     );
                   })
                 ) : (
                   <div className="empty-state">
-                    <p>No documents found in this collection.</p>
+                    <p>
+                      {hasSearchTerm
+                        ? 'Try adjusting your in-page search to see matching documents.'
+                        : 'No documents found in this collection.'}
+                    </p>
                   </div>
                 )}
               </div>
