@@ -10,12 +10,16 @@ export const dynamic = 'force-dynamic';
 
 const SEARCH_LIMIT = 10;
 
+type SearchMode = 'json' | 'text';
+
 type SearchRequest = {
   mongoUri: string;
   preconfiguredMongoUriId: string;
   databaseName: string;
   collectionName: string;
   query: string;
+  text: string;
+  mode: SearchMode;
 };
 
 function parseBody(body: Partial<SearchRequest>): SearchRequest {
@@ -25,8 +29,11 @@ function parseBody(body: Partial<SearchRequest>): SearchRequest {
   const databaseName = typeof body.databaseName === 'string' ? body.databaseName.trim() : '';
   const collectionName = typeof body.collectionName === 'string' ? body.collectionName.trim() : '';
   const query = typeof body.query === 'string' ? body.query.trim() : '';
+  const text = typeof body.text === 'string' ? body.text.trim() : '';
+  const rawMode = typeof body.mode === 'string' ? body.mode.trim().toLowerCase() : '';
+  const mode: SearchMode = rawMode === 'text' ? 'text' : 'json';
 
-  return { mongoUri, preconfiguredMongoUriId, databaseName, collectionName, query };
+  return { mongoUri, preconfiguredMongoUriId, databaseName, collectionName, query, text, mode };
 }
 
 function parseQuery(query: string): Record<string, unknown> {
@@ -49,6 +56,27 @@ function parseQuery(query: string): Record<string, unknown> {
   return parsed as Record<string, unknown>;
 }
 
+function buildContainsFilter(text: string): Record<string, unknown> {
+  const normalized = text.toLowerCase();
+  const serialized = JSON.stringify(normalized);
+
+  return {
+    $where: `function() {
+      const needle = ${serialized};
+      if (!needle) {
+        return false;
+      }
+
+      try {
+        const json = JSON.stringify(this);
+        return typeof json === 'string' && json.toLowerCase().includes(needle);
+      } catch (error) {
+        return false;
+      }
+    }`
+  };
+}
+
 export async function POST(request: Request) {
   try {
     const session = await getAdminSession();
@@ -58,7 +86,8 @@ export async function POST(request: Request) {
     }
 
     const requestBody = (await request.json()) as Partial<SearchRequest>;
-    const { mongoUri, preconfiguredMongoUriId, databaseName, collectionName, query } = parseBody(requestBody);
+    const { mongoUri, preconfiguredMongoUriId, databaseName, collectionName, query, text, mode } =
+      parseBody(requestBody);
 
     const resolved = resolveMongoConnectionUri(mongoUri, preconfiguredMongoUriId);
 
@@ -76,11 +105,19 @@ export async function POST(request: Request) {
 
     let filter: Record<string, unknown>;
 
-    try {
-      filter = parseQuery(query);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Invalid search filter';
-      return NextResponse.json({ error: message }, { status: 400 });
+    if (mode === 'text') {
+      if (!text) {
+        return NextResponse.json({ error: 'Search text is required for text mode.' }, { status: 400 });
+      }
+
+      filter = buildContainsFilter(text);
+    } else {
+      try {
+        filter = parseQuery(query);
+      } catch (error) {
+        const message = error instanceof Error ? error.message : 'Invalid search filter';
+        return NextResponse.json({ error: message }, { status: 400 });
+      }
     }
 
     const client = new MongoClient(resolved.uri);
