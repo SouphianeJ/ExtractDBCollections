@@ -31,9 +31,11 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
   const [databaseName, setDatabaseName] = useState('');
   const [collectionName, setCollectionName] = useState('');
   const [queryInput, setQueryInput] = useState(DEFAULT_QUERY);
+  const [textSearchInput, setTextSearchInput] = useState('');
   const [documents, setDocuments] = useState<unknown[]>([]);
   const [searchError, setSearchError] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [searchMode, setSearchMode] = useState<'json' | 'text'>('json');
 
   const [databaseOptions, setDatabaseOptions] = useState<string[]>([]);
   const [collectionOptions, setCollectionOptions] = useState<string[]>([]);
@@ -288,13 +290,25 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
     setSearchError('');
   };
 
+  const handleTextSearchChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setTextSearchInput(event.target.value);
+    setSearchError('');
+  };
+
+  const handleSearchModeChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const value = event.target.value === 'text' ? 'text' : 'json';
+    setSearchMode(value);
+    setSearchError('');
+  };
+
   const isSubmitDisabled =
     !hasConnectionDetails ||
     !trimmedDatabaseName ||
     !trimmedCollectionName ||
     isSearching ||
     isLoadingDatabases ||
-    isLoadingCollections;
+    isLoadingCollections ||
+    (searchMode === 'text' && textSearchInput.trim().length === 0);
 
   const mongoUriSummary = isUsingCustomMongoUri
     ? trimmedMongoUri || 'Custom MongoDB URI'
@@ -307,36 +321,61 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
       return;
     }
 
-    const rawQuery = queryInput.trim() || DEFAULT_QUERY;
-    let parsedQuery: unknown;
-
-    try {
-      parsedQuery = JSON.parse(rawQuery);
-    } catch (error) {
-      setSearchError('Search filter must be valid JSON. Example: {"status": "active"}');
-      return;
-    }
-
-    if (!isPlainObject(parsedQuery)) {
-      setSearchError('Search filter must be a JSON object.');
-      return;
-    }
-
-    const payload = isUsingCustomMongoUri
+    const basePayload = isUsingCustomMongoUri
       ? {
           mongoUri: trimmedMongoUri,
           preconfiguredMongoUriId: '',
           databaseName: trimmedDatabaseName,
-          collectionName: trimmedCollectionName,
-          query: JSON.stringify(parsedQuery)
+          collectionName: trimmedCollectionName
         }
       : {
           mongoUri: '',
           preconfiguredMongoUriId: selectedPreconfiguredId,
           databaseName: trimmedDatabaseName,
-          collectionName: trimmedCollectionName,
-          query: JSON.stringify(parsedQuery)
+          collectionName: trimmedCollectionName
         };
+
+    let payload:
+      | (typeof basePayload & { mode: 'json'; query: string; text: string })
+      | (typeof basePayload & { mode: 'text'; query: string; text: string });
+
+    if (searchMode === 'text') {
+      const textQuery = textSearchInput.trim();
+
+      if (!textQuery) {
+        setSearchError('Enter text to search for.');
+        return;
+      }
+
+      payload = {
+        ...basePayload,
+        mode: 'text',
+        query: '',
+        text: textQuery
+      };
+    } else {
+      const rawQuery = queryInput.trim() || DEFAULT_QUERY;
+      let parsedQuery: unknown;
+
+      try {
+        parsedQuery = JSON.parse(rawQuery);
+      } catch (error) {
+        setSearchError('Search filter must be valid JSON. Example: {"status": "active"}');
+        return;
+      }
+
+      if (!isPlainObject(parsedQuery)) {
+        setSearchError('Search filter must be a JSON object.');
+        return;
+      }
+
+      payload = {
+        ...basePayload,
+        mode: 'json',
+        query: JSON.stringify(parsedQuery),
+        text: ''
+      };
+    }
 
     setIsSearching(true);
     setSearchError('');
@@ -469,21 +508,65 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
             {collectionErrorMessage && <p className="error">{collectionErrorMessage}</p>}
           </div>
 
-          <div className="form-group">
-            <label htmlFor="searchQuery">Search filter (JSON)</label>
-            <input
-              id="searchQuery"
-              name="searchQuery"
-              type="text"
-              className="form-control"
-              value={queryInput}
-              onChange={handleQueryChange}
-              placeholder='{"status": "active"}'
-            />
-            <p className="help-text">
-              Enter a MongoDB filter as JSON. Example: {'{"email": "example@domain.com"}'}
-            </p>
-          </div>
+          <fieldset className="form-group">
+            <legend>Search mode</legend>
+            <div className="radio-group">
+              <label className="radio-option">
+                <input
+                  type="radio"
+                  name="searchMode"
+                  value="json"
+                  checked={searchMode === 'json'}
+                  onChange={handleSearchModeChange}
+                />
+                JSON filter
+              </label>
+              <label className="radio-option">
+                <input
+                  type="radio"
+                  name="searchMode"
+                  value="text"
+                  checked={searchMode === 'text'}
+                  onChange={handleSearchModeChange}
+                />
+                Contains text
+              </label>
+            </div>
+          </fieldset>
+
+          {searchMode === 'text' ? (
+            <div className="form-group">
+              <label htmlFor="textSearch">Text to find</label>
+              <input
+                id="textSearch"
+                name="textSearch"
+                type="text"
+                className="form-control"
+                value={textSearchInput}
+                onChange={handleTextSearchChange}
+                placeholder="Search text within documents"
+              />
+              <p className="help-text">
+                Find documents where any field contains this text (case-insensitive).
+              </p>
+            </div>
+          ) : (
+            <div className="form-group">
+              <label htmlFor="searchQuery">Search filter (JSON)</label>
+              <input
+                id="searchQuery"
+                name="searchQuery"
+                type="text"
+                className="form-control"
+                value={queryInput}
+                onChange={handleQueryChange}
+                placeholder='{"status": "active"}'
+              />
+              <p className="help-text">
+                Enter a MongoDB filter as JSON. Example: {'{"email": "example@domain.com"}'}
+              </p>
+            </div>
+          )}
 
           {searchError && <div className="alert alert-error">{searchError}</div>}
 
