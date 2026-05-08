@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { MongoClient } from 'mongodb';
 
+import { executeDocumentSearch } from '../../../lib/documentSearch';
 import { resolveMongoConnectionUri } from '../../../lib/preconfiguredMongoUris';
 import { serializeDocuments } from '../../../lib/mongoHelpers';
 import { getAdminSession } from '../../../src/lib/auth/session';
@@ -29,26 +30,6 @@ function parseBody(body: Partial<SearchRequest>): SearchRequest {
   return { mongoUri, preconfiguredMongoUriId, databaseName, collectionName, query };
 }
 
-function parseQuery(query: string): Record<string, unknown> {
-  if (!query) {
-    return {};
-  }
-
-  let parsed: unknown;
-
-  try {
-    parsed = JSON.parse(query);
-  } catch (error) {
-    throw new Error('Search filter must be valid JSON.');
-  }
-
-  if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)) {
-    throw new Error('Search filter must be a JSON object.');
-  }
-
-  return parsed as Record<string, unknown>;
-}
-
 export async function POST(request: Request) {
   try {
     const session = await getAdminSession();
@@ -74,24 +55,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Collection name is required' }, { status: 400 });
     }
 
-    let filter: Record<string, unknown>;
-
-    try {
-      filter = parseQuery(query);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : 'Invalid search filter';
-      return NextResponse.json({ error: message }, { status: 400 });
-    }
-
     const client = new MongoClient(resolved.uri);
 
     try {
       await client.connect();
       const db = client.db(databaseName);
       const collection = db.collection(collectionName);
-      const documents = await collection.find(filter).limit(SEARCH_LIMIT).toArray();
+      const result = await executeDocumentSearch(collection, query, SEARCH_LIMIT);
 
-      return NextResponse.json({ documents: serializeDocuments(documents) });
+      return NextResponse.json({
+        documents: serializeDocuments(result.documents),
+        mode: result.mode
+      });
     } finally {
       await client.close();
     }

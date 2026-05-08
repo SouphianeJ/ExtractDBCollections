@@ -8,7 +8,7 @@ import type { MongoUriOption } from '../../components/ExtractorForm';
 
 const SEARCH_LIMIT = 10;
 
-const DEFAULT_QUERY = '{}';
+const DEFAULT_QUERY = '';
 
 type SearchPageClientProps = {
   preconfiguredOptions: MongoUriOption[];
@@ -16,11 +16,8 @@ type SearchPageClientProps = {
 
 type SearchResponse = {
   documents?: unknown[];
+  mode?: 'json' | 'text';
 };
-
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value);
-}
 
 export default function SearchPageClient({ preconfiguredOptions }: SearchPageClientProps) {
   const hasPreconfiguredOptions = preconfiguredOptions.length > 0;
@@ -32,6 +29,7 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
   const [collectionName, setCollectionName] = useState('');
   const [queryInput, setQueryInput] = useState(DEFAULT_QUERY);
   const [documents, setDocuments] = useState<unknown[]>([]);
+  const [queryMode, setQueryMode] = useState<'json' | 'text'>('json');
   const [searchError, setSearchError] = useState('');
   const [isSearching, setIsSearching] = useState(false);
 
@@ -299,6 +297,26 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
   const mongoUriSummary = isUsingCustomMongoUri
     ? trimmedMongoUri || 'Custom MongoDB URI'
     : selectedPreconfiguredOption?.name || 'Preconfigured connection';
+  const crudHref = useMemo(() => {
+    const params = new URLSearchParams();
+
+    if (trimmedDatabaseName) {
+      params.set('databaseName', trimmedDatabaseName);
+    }
+
+    if (trimmedCollectionName) {
+      params.set('collectionName', trimmedCollectionName);
+    }
+
+    if (isUsingCustomMongoUri && trimmedMongoUri) {
+      params.set('mongoUri', trimmedMongoUri);
+    } else if (selectedPreconfiguredId) {
+      params.set('preconfiguredMongoUriId', selectedPreconfiguredId);
+    }
+
+    const queryString = params.toString();
+    return queryString ? `/crud?${queryString}` : '/crud';
+  }, [isUsingCustomMongoUri, selectedPreconfiguredId, trimmedMongoUri, trimmedDatabaseName, trimmedCollectionName]);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -308,34 +326,20 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
     }
 
     const rawQuery = queryInput.trim() || DEFAULT_QUERY;
-    let parsedQuery: unknown;
-
-    try {
-      parsedQuery = JSON.parse(rawQuery);
-    } catch (error) {
-      setSearchError('Search filter must be valid JSON. Example: {"status": "active"}');
-      return;
-    }
-
-    if (!isPlainObject(parsedQuery)) {
-      setSearchError('Search filter must be a JSON object.');
-      return;
-    }
-
     const payload = isUsingCustomMongoUri
       ? {
           mongoUri: trimmedMongoUri,
           preconfiguredMongoUriId: '',
           databaseName: trimmedDatabaseName,
           collectionName: trimmedCollectionName,
-          query: JSON.stringify(parsedQuery)
+          query: rawQuery
         }
       : {
           mongoUri: '',
           preconfiguredMongoUriId: selectedPreconfiguredId,
           databaseName: trimmedDatabaseName,
           collectionName: trimmedCollectionName,
-          query: JSON.stringify(parsedQuery)
+          query: rawQuery
         };
 
     setIsSearching(true);
@@ -363,6 +367,7 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
       const data = (await response.json()) as SearchResponse;
       const foundDocuments = Array.isArray(data.documents) ? data.documents : [];
       setDocuments(foundDocuments);
+      setQueryMode(data.mode === 'text' ? 'text' : 'json');
     } catch (error) {
       console.error('Failed to execute search:', error);
       const message = error instanceof Error ? error.message : 'Unknown error while searching.';
@@ -470,7 +475,7 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
           </div>
 
           <div className="form-group">
-            <label htmlFor="searchQuery">Search filter (JSON)</label>
+            <label htmlFor="searchQuery">Search (text or JSON)</label>
             <input
               id="searchQuery"
               name="searchQuery"
@@ -478,10 +483,10 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
               className="form-control"
               value={queryInput}
               onChange={handleQueryChange}
-              placeholder='{"status": "active"}'
+              placeholder='john doe or {"status": "active"}'
             />
             <p className="help-text">
-              Enter a MongoDB filter as JSON. Example: {'{"email": "example@domain.com"}'}
+              Use plain text to match any discovered field content, or provide a JSON filter such as {'{"email": "example@domain.com"}'}.
             </p>
           </div>
 
@@ -491,13 +496,25 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
             <button type="submit" className="primary-button" disabled={isSubmitDisabled}>
               {isSearching ? 'Searching…' : 'Search documents'}
             </button>
+            <Link className="link-button" href={crudHref}>
+              Open CRUD workspace
+            </Link>
             <Link className="link-button" href="/admin">
-              Back to extractor
+              Back to dashboard
             </Link>
           </div>
         </form>
 
         <div className="documents-view">
+          <div className="documents-view__header">
+            <div>
+              <h2>Results</h2>
+              <p>Plain text searches scan discovered fields, while JSON keeps precise MongoDB filters.</p>
+            </div>
+            <span className="search-mode-pill">
+              {queryMode === 'text' ? 'Text search across fields' : 'JSON filter mode'}
+            </span>
+          </div>
           {isSearching ? (
             <div className="loading-state">Searching documents…</div>
           ) : documents.length === 0 ? (
