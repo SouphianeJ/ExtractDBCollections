@@ -21,6 +21,9 @@ type CrudDocument = Record<string, unknown>;
 type CrudSearchResponse = {
   documents?: unknown[];
   mode?: SearchMode;
+  hasMore?: boolean;
+  limit?: number;
+  offset?: number;
 };
 
 type CrudMutationResponse = {
@@ -74,7 +77,8 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
   const [customMongoUri, setCustomMongoUri] = useState(() => searchParams.get('mongoUri') ?? '');
   const [databaseName, setDatabaseName] = useState(() => searchParams.get('databaseName') ?? '');
   const [collectionName, setCollectionName] = useState(() => searchParams.get('collectionName') ?? '');
-  const [queryInput, setQueryInput] = useState('');
+  const [queryInput, setQueryInput] = useState(() => searchParams.get('query') ?? '');
+  const [excludeQueryInput, setExcludeQueryInput] = useState(() => searchParams.get('excludeQuery') ?? '');
   const [documents, setDocuments] = useState<CrudDocument[]>([]);
   const [queryMode, setQueryMode] = useState<SearchMode>('json');
   const [searchError, setSearchError] = useState('');
@@ -85,6 +89,8 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
   const [deletingDocumentKey, setDeletingDocumentKey] = useState('');
   const [editorValue, setEditorValue] = useState(DEFAULT_EDITOR_VALUE);
   const [selectedDocumentId, setSelectedDocumentId] = useState<unknown | null>(null);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [hasMoreResults, setHasMoreResults] = useState(false);
   const [databaseOptions, setDatabaseOptions] = useState<string[]>([]);
   const [collectionOptions, setCollectionOptions] = useState<string[]>([]);
   const [isLoadingDatabases, setIsLoadingDatabases] = useState(false);
@@ -114,6 +120,7 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
   const trimmedDatabaseName = databaseName.trim();
   const trimmedCollectionName = collectionName.trim();
   const trimmedQuery = queryInput.trim();
+  const trimmedExcludeQuery = excludeQueryInput.trim();
 
   const connectionKey = isUsingCustomMongoUri ? trimmedMongoUri : selectedPreconfiguredId;
   const hasConnectionDetails = Boolean(connectionKey);
@@ -143,9 +150,25 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
       params.set('preconfiguredMongoUriId', selectedPreconfiguredId);
     }
 
+    if (trimmedQuery) {
+      params.set('query', trimmedQuery);
+    }
+
+    if (trimmedExcludeQuery) {
+      params.set('excludeQuery', trimmedExcludeQuery);
+    }
+
     const queryString = params.toString();
     return queryString ? `/crud?${queryString}` : '/crud';
-  }, [isUsingCustomMongoUri, selectedPreconfiguredId, trimmedMongoUri, trimmedDatabaseName, trimmedCollectionName]);
+  }, [
+    isUsingCustomMongoUri,
+    selectedPreconfiguredId,
+    trimmedMongoUri,
+    trimmedDatabaseName,
+    trimmedCollectionName,
+    trimmedQuery,
+    trimmedExcludeQuery
+  ]);
 
   useEffect(() => {
     if (connectionKey === previousConnectionKeyRef.current) {
@@ -159,6 +182,8 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
     setDocuments([]);
     setSelectedDocumentId(null);
     setEditorValue(DEFAULT_EDITOR_VALUE);
+    setCurrentPage(0);
+    setHasMoreResults(false);
     setDatabaseOptions([]);
     setCollectionOptions([]);
     setDatabaseErrorMessage('');
@@ -352,7 +377,10 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
           collectionName: trimmedCollectionName
         };
 
-  const performSearch = async ({ preserveFeedback = false }: { preserveFeedback?: boolean } = {}) => {
+  const performSearch = async ({
+    preserveFeedback = false,
+    page = 0
+  }: { preserveFeedback?: boolean; page?: number } = {}) => {
     if (isSearchDisabled) {
       return false;
     }
@@ -372,7 +400,9 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
         body: JSON.stringify({
           ...buildConnectionPayload(),
           action: 'search',
-          query: trimmedQuery
+          query: trimmedQuery,
+          excludeQuery: trimmedExcludeQuery,
+          page
         })
       });
 
@@ -394,6 +424,8 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
 
       setDocuments(nextDocuments);
       setQueryMode(data.mode === 'text' ? 'text' : 'json');
+      setCurrentPage(page);
+      setHasMoreResults(Boolean(data.hasMore));
 
       if (
         selectedDocumentId !== null &&
@@ -408,6 +440,7 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
       const message = error instanceof Error ? error.message : 'Unknown error while searching.';
       setSearchError(message);
       setDocuments([]);
+      setHasMoreResults(false);
       return false;
     } finally {
       setIsSearching(false);
@@ -440,6 +473,8 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
     setDocuments([]);
     setSelectedDocumentId(null);
     setEditorValue(DEFAULT_EDITOR_VALUE);
+    setCurrentPage(0);
+    setHasMoreResults(false);
     setSearchError('');
     setCrudError('');
     setCrudSuccess('');
@@ -452,6 +487,8 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
     setDocuments([]);
     setSelectedDocumentId(null);
     setEditorValue(DEFAULT_EDITOR_VALUE);
+    setCurrentPage(0);
+    setHasMoreResults(false);
     setSearchError('');
     setCrudError('');
     setCrudSuccess('');
@@ -459,6 +496,15 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
 
   const handleQueryChange = (event: ChangeEvent<HTMLInputElement>) => {
     setQueryInput(event.target.value);
+    setCurrentPage(0);
+    setHasMoreResults(false);
+    setSearchError('');
+  };
+
+  const handleExcludeQueryChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setExcludeQueryInput(event.target.value);
+    setCurrentPage(0);
+    setHasMoreResults(false);
     setSearchError('');
   };
 
@@ -470,7 +516,23 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
 
   const handleSearchSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    await performSearch();
+    await performSearch({ page: 0 });
+  };
+
+  const handlePreviousPage = async () => {
+    if (currentPage === 0 || isSearching) {
+      return;
+    }
+
+    await performSearch({ page: currentPage - 1 });
+  };
+
+  const handleNextPage = async () => {
+    if (!hasMoreResults || isSearching) {
+      return;
+    }
+
+    await performSearch({ page: currentPage + 1 });
   };
 
   const handleSelectDocument = (document: CrudDocument) => {
@@ -554,7 +616,7 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
         setCrudSuccess('Document updated successfully.');
       }
 
-      await performSearch({ preserveFeedback: true });
+      await performSearch({ preserveFeedback: true, page: currentPage });
     } catch (error) {
       console.error('Failed to save CRUD document:', error);
       const message = error instanceof Error ? error.message : 'Failed to save the document.';
@@ -618,7 +680,7 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
       }
 
       setCrudSuccess('Document deleted successfully.');
-      await performSearch({ preserveFeedback: true });
+      await performSearch({ preserveFeedback: true, page: currentPage });
     } catch (error) {
       console.error('Failed to delete CRUD document:', error);
       const message = error instanceof Error ? error.message : 'Failed to delete the document.';
@@ -637,6 +699,8 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
     ? 'Edit the JSON below, then save to replace the current document.'
     : 'Provide a JSON object and save it to insert a new document into the selected collection.';
   const hasEditorText = editorValue.trim().length > 0;
+  const resultStart = documents.length ? currentPage * SEARCH_LIMIT + 1 : 0;
+  const resultEnd = documents.length ? resultStart + documents.length - 1 : 0;
 
   return (
     <main className="page crud-page">
@@ -736,7 +800,7 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
               </div>
 
               <div className="form-group">
-                <label htmlFor="searchQuery">Search (text or JSON)</label>
+                <label htmlFor="searchQuery">Contains (text or JSON)</label>
                 <input
                   id="searchQuery"
                   name="searchQuery"
@@ -744,10 +808,27 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
                   className="form-control"
                   value={queryInput}
                   onChange={handleQueryChange}
-                  placeholder='john doe or {"status": "active"}'
+                  placeholder='STAPS or {"status": "active"}'
                 />
                 <p className="help-text help-text--compact">
-                  Plain text splits your query into terms and matches them across discovered document fields. JSON stays available for exact MongoDB filters.
+                  Optional. Plain text splits your terms and matches them across discovered document fields. JSON stays
+                  available for exact MongoDB filters.
+                </p>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="excludeQuery">Does not contain</label>
+                <input
+                  id="excludeQuery"
+                  name="excludeQuery"
+                  type="text"
+                  className="form-control"
+                  value={excludeQueryInput}
+                  onChange={handleExcludeQueryChange}
+                  placeholder="test"
+                />
+                <p className="help-text help-text--compact">
+                  Optional. Excludes any document containing one of these text terms across discovered fields.
                 </p>
               </div>
 
@@ -814,8 +895,8 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
               <h2>Results</h2>
               <p>
                 {documents.length
-                  ? `Showing ${documents.length} document${documents.length === 1 ? '' : 's'} (max ${SEARCH_LIMIT}).`
-                  : 'Run a search to load up to 10 documents from the selected collection.'}
+                  ? `Showing ${resultStart}-${resultEnd} from ${collectionName}.`
+                  : `Run a search to load up to ${SEARCH_LIMIT} documents per page from the selected collection.`}
               </p>
             </div>
             <span className="search-mode-pill">
@@ -866,6 +947,28 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {(documents.length > 0 || currentPage > 0 || hasMoreResults) && (
+            <div className="pagination-controls">
+              <button
+                className="secondary-button pagination-button"
+                type="button"
+                onClick={handlePreviousPage}
+                disabled={isSearching || currentPage === 0}
+              >
+                Previous 10
+              </button>
+              <span className="pagination-status">Page {currentPage + 1}</span>
+              <button
+                className="secondary-button pagination-button"
+                type="button"
+                onClick={handleNextPage}
+                disabled={isSearching || !hasMoreResults}
+              >
+                Next 10
+              </button>
             </div>
           )}
 

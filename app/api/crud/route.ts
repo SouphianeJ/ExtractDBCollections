@@ -20,6 +20,8 @@ type CrudRequest = {
   collectionName: string;
   action: CrudAction;
   query?: string;
+  excludeQuery?: string;
+  page?: number;
   document?: unknown;
   documentId?: unknown;
 };
@@ -31,6 +33,8 @@ type ParsedCrudRequest = {
   collectionName: string;
   action: CrudAction;
   query: string;
+  excludeQuery: string;
+  page: number;
   document?: unknown;
   documentId?: unknown;
 };
@@ -44,6 +48,8 @@ function parseBody(body: Partial<CrudRequest>): ParsedCrudRequest {
   const action: CrudAction =
     body.action === 'create' || body.action === 'update' || body.action === 'delete' ? body.action : 'search';
   const query = typeof body.query === 'string' ? body.query.trim() : '';
+  const excludeQuery = typeof body.excludeQuery === 'string' ? body.excludeQuery.trim() : '';
+  const page = typeof body.page === 'number' && Number.isFinite(body.page) && body.page > 0 ? Math.floor(body.page) : 0;
 
   return {
     mongoUri,
@@ -52,6 +58,8 @@ function parseBody(body: Partial<CrudRequest>): ParsedCrudRequest {
     collectionName,
     action,
     query,
+    excludeQuery,
+    page,
     document: body.document,
     documentId: body.documentId
   };
@@ -104,8 +112,18 @@ export async function POST(request: Request) {
     }
 
     const requestBody = (await request.json()) as Partial<CrudRequest>;
-    const { mongoUri, preconfiguredMongoUriId, databaseName, collectionName, action, query, document, documentId } =
-      parseBody(requestBody);
+    const {
+      mongoUri,
+      preconfiguredMongoUriId,
+      databaseName,
+      collectionName,
+      action,
+      query,
+      excludeQuery,
+      page,
+      document,
+      documentId
+    } = parseBody(requestBody);
 
     const resolved = resolveMongoConnectionUri(mongoUri, preconfiguredMongoUriId);
 
@@ -129,11 +147,19 @@ export async function POST(request: Request) {
       const collection = db.collection(collectionName);
 
       if (action === 'search') {
-        const result = await executeDocumentSearch(collection, query, SEARCH_LIMIT);
+        const result = await executeDocumentSearch(collection, {
+          query,
+          excludeQuery,
+          limit: SEARCH_LIMIT,
+          offset: page * SEARCH_LIMIT
+        });
 
         return NextResponse.json({
           documents: serializeDocuments(result.documents),
-          mode: result.mode
+          mode: result.mode,
+          hasMore: result.hasMore,
+          limit: result.limit,
+          offset: result.offset
         });
       }
 

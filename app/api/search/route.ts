@@ -17,6 +17,8 @@ type SearchRequest = {
   databaseName: string;
   collectionName: string;
   query: string;
+  excludeQuery: string;
+  page: number;
 };
 
 function parseBody(body: Partial<SearchRequest>): SearchRequest {
@@ -26,8 +28,10 @@ function parseBody(body: Partial<SearchRequest>): SearchRequest {
   const databaseName = typeof body.databaseName === 'string' ? body.databaseName.trim() : '';
   const collectionName = typeof body.collectionName === 'string' ? body.collectionName.trim() : '';
   const query = typeof body.query === 'string' ? body.query.trim() : '';
+  const excludeQuery = typeof body.excludeQuery === 'string' ? body.excludeQuery.trim() : '';
+  const page = typeof body.page === 'number' && Number.isFinite(body.page) && body.page > 0 ? Math.floor(body.page) : 0;
 
-  return { mongoUri, preconfiguredMongoUriId, databaseName, collectionName, query };
+  return { mongoUri, preconfiguredMongoUriId, databaseName, collectionName, query, excludeQuery, page };
 }
 
 export async function POST(request: Request) {
@@ -39,7 +43,8 @@ export async function POST(request: Request) {
     }
 
     const requestBody = (await request.json()) as Partial<SearchRequest>;
-    const { mongoUri, preconfiguredMongoUriId, databaseName, collectionName, query } = parseBody(requestBody);
+    const { mongoUri, preconfiguredMongoUriId, databaseName, collectionName, query, excludeQuery, page } =
+      parseBody(requestBody);
 
     const resolved = resolveMongoConnectionUri(mongoUri, preconfiguredMongoUriId);
 
@@ -61,11 +66,19 @@ export async function POST(request: Request) {
       await client.connect();
       const db = client.db(databaseName);
       const collection = db.collection(collectionName);
-      const result = await executeDocumentSearch(collection, query, SEARCH_LIMIT);
+      const result = await executeDocumentSearch(collection, {
+        query,
+        excludeQuery,
+        limit: SEARCH_LIMIT,
+        offset: page * SEARCH_LIMIT
+      });
 
       return NextResponse.json({
         documents: serializeDocuments(result.documents),
-        mode: result.mode
+        mode: result.mode,
+        hasMore: result.hasMore,
+        limit: result.limit,
+        offset: result.offset
       });
     } finally {
       await client.close();

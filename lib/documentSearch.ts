@@ -15,9 +15,19 @@ type TextSearchQuery = {
 
 export type ParsedSearchQuery = JsonSearchQuery | TextSearchQuery;
 
+export type DocumentSearchOptions = {
+  query: string;
+  excludeQuery?: string;
+  limit: number;
+  offset?: number;
+};
+
 export type SearchExecutionResult = {
   documents: unknown[];
   mode: ParsedSearchQuery['mode'];
+  limit: number;
+  offset: number;
+  hasMore: boolean;
 };
 
 const FIELD_DISCOVERY_LIMIT = 50;
@@ -32,6 +42,20 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function parseTextSearchTerms(rawQuery: string): string[] {
+  return Array.from(
+    new Map(
+      rawQuery
+        .trim()
+        .split(/\s+/)
+        .map((term) => term.trim())
+        .filter(Boolean)
+        .slice(0, MAX_TEXT_SEARCH_TERMS)
+        .map((term) => [term.toLowerCase(), term] as const)
+    ).values()
+  );
 }
 
 function collectSearchablePaths(
@@ -127,16 +151,7 @@ export function parseSearchQuery(rawQuery: string): ParsedSearchQuery {
     }
   } catch {}
 
-  const searchTerms = Array.from(
-    new Map(
-      trimmedQuery
-        .split(/\s+/)
-        .map((term) => term.trim())
-        .filter(Boolean)
-        .slice(0, MAX_TEXT_SEARCH_TERMS)
-        .map((term) => [term.toLowerCase(), term] as const)
-    ).values()
-  );
+  const searchTerms = parseTextSearchTerms(trimmedQuery);
 
   return {
     mode: 'text',
@@ -146,18 +161,50 @@ export function parseSearchQuery(rawQuery: string): ParsedSearchQuery {
   };
 }
 
+function buildTermExpression(fieldPaths: string[], searchTerm: string) {
+  const regex = escapeRegExp(searchTerm);
+
+  return {
+    $or: fieldPaths.map((fieldPath) => ({
+      $regexMatch: {
+        input: {
+          $convert: {
+            input: `$${fieldPath}`,
+            to: 'string',
+            onError: '',
+            onNull: ''
+          }
+        },
+        regex,
+        options: 'i'
+      }
+    }))
+  };
+}
+
 export async function executeDocumentSearch(
   collection: Collection,
-  rawQuery: string,
-  limit: number
+  { query, excludeQuery = '', limit, offset = 0 }: DocumentSearchOptions
 ): Promise<SearchExecutionResult> {
-  const parsedQuery = parseSearchQuery(rawQuery);
+  const parsedQuery = parseSearchQuery(query);
+  const excludeTerms = parseTextSearchTerms(excludeQuery);
+  const normalizedOffset = Number.isFinite(offset) && offset > 0 ? Math.floor(offset) : 0;
+  const responseMode =
+    parsedQuery.mode === 'json' && !parsedQuery.rawQuery && excludeTerms.length > 0 ? 'text' : parsedQuery.mode;
 
-  if (parsedQuery.mode === 'json') {
-    const documents = await collection.find(parsedQuery.filter).limit(limit).toArray();
+  if (parsedQuery.mode === 'json' && !excludeTerms.length) {
+    const pagedDocuments = await collection
+      .find(parsedQuery.filter)
+      .skip(normalizedOffset)
+      .limit(limit + 1)
+      .toArray();
+
     return {
-      documents,
-      mode: parsedQuery.mode
+      documents: pagedDocuments.slice(0, limit),
+      mode: responseMode,
+      limit,
+      offset: normalizedOffset,
+      hasMore: pagedDocuments.length > limit
     };
   }
 
@@ -166,49 +213,60 @@ export async function executeDocumentSearch(
   if (!fieldPaths.length) {
     return {
       documents: [],
-      mode: parsedQuery.mode
+      mode: responseMode,
+      limit,
+      offset: normalizedOffset,
+      hasMore: false
     };
   }
 
-  const searchTerms = parsedQuery.searchTerms.length ? parsedQuery.searchTerms : [parsedQuery.searchTerm];
-  const expressions = searchTerms.map((searchTerm) => {
-    const regex = escapeRegExp(searchTerm);
+  const expressions: Record<string, unknown>[] = [];
 
-    return {
-      $or: fieldPaths.map((fieldPath) => ({
-        $regexMatch: {
-          input: {
-            $convert: {
-              input: `$${fieldPath}`,
-              to: 'string',
-              onError: '',
-              onNull: ''
-            }
-          },
-          regex,
-          options: 'i'
-        }
-      }))
-    };
-  });
+  if (parsedQuery.mode === 'text') {
+    const searchTerms = parsedQuery.searchTerms.length ? parsedQuery.searchTerms : [parsedQuery.searchTerm];
 
-  const documents = await collection
-    .aggregate([
-      {
-        $match: {
-          $expr: {
-            $and: expressions
-          }
-        }
-      },
-      {
-        $limit: limit
+    if (searchTerms.length) {
+      expressions.push({
+        $and: searchTerms.map((searchTerm) => buildTermExpression(fieldPaths, searchTerm))
+      });
+    }
+  }
+
+  for (const excludeTerm of excludeTerms) {
+    expressions.push({
+      $not: buildTermExpression(fieldPaths, excludeTerm)
+    });
+  }
+
+  const pipeline: Record<string, unknown>[] = [];
+
+  if (parsedQuery.mode === 'json') {
+    pipeline.push({ $match: parsedQuery.filter });
+  }
+
+  if (expressions.length) {
+    pipeline.push({
+      $match: {
+        $expr:
+          expressions.length === 1
+            ? expressions[0]
+            : {
+                $and: expressions
+              }
       }
-    ])
-    .toArray();
+    });
+  }
+
+  pipeline.push({ $skip: normalizedOffset });
+  pipeline.push({ $limit: limit + 1 });
+
+  const pagedDocuments = await collection.aggregate(pipeline).toArray();
 
   return {
-    documents,
-    mode: parsedQuery.mode
+    documents: pagedDocuments.slice(0, limit),
+    mode: responseMode,
+    limit,
+    offset: normalizedOffset,
+    hasMore: pagedDocuments.length > limit
   };
 }
