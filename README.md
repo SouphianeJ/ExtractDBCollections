@@ -1,6 +1,6 @@
 # MongoDB Collection Extractor
 
-A full-stack application powered by **Next.js** that lets you extract MongoDB collections and download them as JSON (single collection) or ZIP archives (multiple collections). The UI and API live in the same project, eliminating the Angular + Express monorepo setup while keeping all existing functionality.
+A full-stack application powered by **Next.js** that lets you extract MongoDB collections, search documents, and manage CRUD actions from a secured admin workspace. The UI and API live in the same project, eliminating the Angular + Express monorepo setup while keeping all existing functionality.
 
 ## Features
 
@@ -9,6 +9,8 @@ A full-stack application powered by **Next.js** that lets you extract MongoDB co
 - **Database & Collection Browsing** – Automatically discover databases and collections for the selected connection
 - **Single Collection Extraction** – Download every document from a chosen collection
 - **All Collections Extraction** – Export every collection from the connected database
+- **Dedicated document search** – Switch between JSON filters and tokenized plain-text search across multiple fields
+- **CRUD workspace** – Create, inspect, update, and delete documents from one dedicated page
 - **Limit Mode** – Optionally grab only three random documents per collection
 - **Smart Downloading**
   - Single collection → JSON file download

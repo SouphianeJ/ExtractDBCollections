@@ -531,7 +531,7 @@ export default function ExtractorForm({ preconfiguredOptions }: ExtractorFormPro
     router.push(`/view?${params.toString()}`);
   };
 
-  const handleEditClick = () => {
+  const handleCrudClick = () => {
     setTouched({
       mongoUri: isUsingCustomMongoUri,
       databaseName: true,
@@ -555,7 +555,7 @@ export default function ExtractorForm({ preconfiguredOptions }: ExtractorFormPro
       params.set('preconfiguredMongoUriId', selectedPreconfiguredId);
     }
 
-    router.push(`/edit?${params.toString()}`);
+    router.push(`/crud?${params.toString()}`);
   };
 
   return (
@@ -697,26 +697,26 @@ export default function ExtractorForm({ preconfiguredOptions }: ExtractorFormPro
 
           <div className="button-group">
             <button className="submit-button" type="submit" disabled={isSubmitDisabled}>
-              {isLoading ? 'Extracting…' : 'Extract & Download'}
-            </button>
-            <button
-              className="secondary-button view-button"
+               {isLoading ? 'Extracting…' : 'Extract & Download'}
+             </button>
+             <button
+               className="secondary-button view-button"
               type="button"
               onClick={handleViewClick}
               disabled={isViewDisabled}
             >
-              View collections
-            </button>
-            <button
-              className="secondary-button view-button"
-              type="button"
-              onClick={handleEditClick}
-              disabled={isEditDisabled}
-            >
-              Add document to collection
-            </button>
-          </div>
-        </form>
+               Preview collections
+             </button>
+             <button
+               className="secondary-button view-button"
+               type="button"
+               onClick={handleCrudClick}
+               disabled={isEditDisabled}
+             >
+               Open CRUD workspace
+             </button>
+           </div>
+         </form>
 
         <div className="info-box">
           <h3>How it works:</h3>

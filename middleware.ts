@@ -28,7 +28,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (pathname.startsWith('/admin') || pathname.startsWith('/search')) {
+  if (
+    pathname.startsWith('/admin') ||
+    pathname.startsWith('/search') ||
+    pathname.startsWith('/extract') ||
+    pathname.startsWith('/crud') ||
+    pathname.startsWith('/view') ||
+    pathname.startsWith('/edit')
+  ) {
     if (!hasSession) {
       const url = request.nextUrl.clone();
       url.pathname = '/login';
@@ -43,5 +50,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ['/admin/:path*', '/login', '/search']
+  matcher: ['/admin/:path*', '/login', '/search', '/extract', '/crud', '/view', '/edit']
 };

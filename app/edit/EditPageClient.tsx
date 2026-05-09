@@ -334,8 +334,8 @@ export default function EditPageClient() {
               Samples are unavailable when creating a new collection.
             </div>
           )}
-          <Link className="link-button" href="/">
-            Back to extractor
+          <Link className="link-button" href="/admin">
+            Back to dashboard
           </Link>
         </div>
 

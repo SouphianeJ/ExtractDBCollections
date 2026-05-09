@@ -179,8 +179,8 @@ export default function ViewPage() {
           <button className="secondary-button refresh-button" onClick={handleRefresh} disabled={isLoading}>
             {isLoading ? 'Refreshing…' : 'Refresh samples'}
           </button>
-          <Link className="link-button" href="/">
-            Back to extractor
+          <Link className="link-button" href="/admin">
+            Back to dashboard
           </Link>
         </div>
 
