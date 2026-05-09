@@ -17,6 +17,9 @@ type SearchPageClientProps = {
 type SearchResponse = {
   documents?: unknown[];
   mode?: 'json' | 'text';
+  hasMore?: boolean;
+  limit?: number;
+  offset?: number;
 };
 
 export default function SearchPageClient({ preconfiguredOptions }: SearchPageClientProps) {
@@ -28,10 +31,13 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
   const [databaseName, setDatabaseName] = useState('');
   const [collectionName, setCollectionName] = useState('');
   const [queryInput, setQueryInput] = useState(DEFAULT_QUERY);
+  const [excludeQueryInput, setExcludeQueryInput] = useState('');
   const [documents, setDocuments] = useState<unknown[]>([]);
   const [queryMode, setQueryMode] = useState<'json' | 'text'>('json');
   const [searchError, setSearchError] = useState('');
   const [isSearching, setIsSearching] = useState(false);
+  const [currentPage, setCurrentPage] = useState(0);
+  const [hasMoreResults, setHasMoreResults] = useState(false);
 
   const [databaseOptions, setDatabaseOptions] = useState<string[]>([]);
   const [collectionOptions, setCollectionOptions] = useState<string[]>([]);
@@ -61,6 +67,8 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
   const trimmedMongoUri = customMongoUri.trim();
   const trimmedDatabaseName = databaseName.trim();
   const trimmedCollectionName = collectionName.trim();
+  const trimmedQuery = queryInput.trim();
+  const trimmedExcludeQuery = excludeQueryInput.trim();
 
   const connectionKey = isUsingCustomMongoUri ? trimmedMongoUri : selectedPreconfiguredId;
   const hasConnectionDetails = Boolean(connectionKey);
@@ -74,6 +82,9 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
 
     setDatabaseName('');
     setCollectionName('');
+    setDocuments([]);
+    setCurrentPage(0);
+    setHasMoreResults(false);
     setDatabaseOptions([]);
     setCollectionOptions([]);
     setDatabaseErrorMessage('');
@@ -271,6 +282,9 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
   const handleDatabaseChange = (event: ChangeEvent<HTMLSelectElement>) => {
     setDatabaseName(event.target.value);
     setCollectionName('');
+    setDocuments([]);
+    setCurrentPage(0);
+    setHasMoreResults(false);
     setSearchError('');
     setCollectionErrorMessage('');
     lastLoadedCollectionsKeyRef.current = '';
@@ -278,11 +292,23 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
 
   const handleCollectionChange = (event: ChangeEvent<HTMLSelectElement>) => {
     setCollectionName(event.target.value);
+    setDocuments([]);
+    setCurrentPage(0);
+    setHasMoreResults(false);
     setSearchError('');
   };
 
   const handleQueryChange = (event: ChangeEvent<HTMLInputElement>) => {
     setQueryInput(event.target.value);
+    setCurrentPage(0);
+    setHasMoreResults(false);
+    setSearchError('');
+  };
+
+  const handleExcludeQueryChange = (event: ChangeEvent<HTMLInputElement>) => {
+    setExcludeQueryInput(event.target.value);
+    setCurrentPage(0);
+    setHasMoreResults(false);
     setSearchError('');
   };
 
@@ -314,32 +340,46 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
       params.set('preconfiguredMongoUriId', selectedPreconfiguredId);
     }
 
-    const queryString = params.toString();
-    return queryString ? `/crud?${queryString}` : '/crud';
-  }, [isUsingCustomMongoUri, selectedPreconfiguredId, trimmedMongoUri, trimmedDatabaseName, trimmedCollectionName]);
-
-  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    if (isSubmitDisabled) {
-      return;
+    if (trimmedQuery) {
+      params.set('query', trimmedQuery);
     }
 
-    const rawQuery = queryInput.trim() || DEFAULT_QUERY;
+    if (trimmedExcludeQuery) {
+      params.set('excludeQuery', trimmedExcludeQuery);
+    }
+
+    const queryString = params.toString();
+    return queryString ? `/crud?${queryString}` : '/crud';
+  }, [
+    isUsingCustomMongoUri,
+    selectedPreconfiguredId,
+    trimmedMongoUri,
+    trimmedDatabaseName,
+    trimmedCollectionName,
+    trimmedQuery,
+    trimmedExcludeQuery
+  ]);
+
+  const executeSearch = async (page: number) => {
+    const rawQuery = trimmedQuery || DEFAULT_QUERY;
     const payload = isUsingCustomMongoUri
       ? {
           mongoUri: trimmedMongoUri,
           preconfiguredMongoUriId: '',
           databaseName: trimmedDatabaseName,
           collectionName: trimmedCollectionName,
-          query: rawQuery
+          query: rawQuery,
+          excludeQuery: trimmedExcludeQuery,
+          page
         }
       : {
           mongoUri: '',
           preconfiguredMongoUriId: selectedPreconfiguredId,
           databaseName: trimmedDatabaseName,
           collectionName: trimmedCollectionName,
-          query: rawQuery
+          query: rawQuery,
+          excludeQuery: trimmedExcludeQuery,
+          page
         };
 
     setIsSearching(true);
@@ -368,21 +408,53 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
       const foundDocuments = Array.isArray(data.documents) ? data.documents : [];
       setDocuments(foundDocuments);
       setQueryMode(data.mode === 'text' ? 'text' : 'json');
+      setCurrentPage(page);
+      setHasMoreResults(Boolean(data.hasMore));
     } catch (error) {
       console.error('Failed to execute search:', error);
       const message = error instanceof Error ? error.message : 'Unknown error while searching.';
       setSearchError(message);
+      setHasMoreResults(false);
     } finally {
       setIsSearching(false);
     }
   };
+
+  const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    if (isSubmitDisabled) {
+      return;
+    }
+
+    await executeSearch(0);
+  };
+
+  const handlePreviousPage = async () => {
+    if (currentPage === 0 || isSearching) {
+      return;
+    }
+
+    await executeSearch(currentPage - 1);
+  };
+
+  const handleNextPage = async () => {
+    if (!hasMoreResults || isSearching) {
+      return;
+    }
+
+    await executeSearch(currentPage + 1);
+  };
+
+  const resultStart = documents.length ? currentPage * SEARCH_LIMIT + 1 : 0;
+  const resultEnd = documents.length ? resultStart + documents.length - 1 : 0;
 
   return (
     <main className="page search-page">
       <div className="container">
         <div className="header">
           <h1>Search MongoDB Documents</h1>
-          <p>Run targeted queries and preview up to {SEARCH_LIMIT} matching documents.</p>
+          <p>Run targeted queries and preview up to {SEARCH_LIMIT} matching documents per page.</p>
         </div>
 
         <p className="connection-summary">Connected through: {mongoUriSummary}</p>
@@ -475,7 +547,7 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
           </div>
 
           <div className="form-group">
-            <label htmlFor="searchQuery">Search (text or JSON)</label>
+            <label htmlFor="searchQuery">Contains (text or JSON)</label>
             <input
               id="searchQuery"
               name="searchQuery"
@@ -483,10 +555,27 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
               className="form-control"
               value={queryInput}
               onChange={handleQueryChange}
-              placeholder='john doe or {"status": "active"}'
+              placeholder='STAPS or {"status": "active"}'
             />
             <p className="help-text">
-              Use plain text to match terms across any discovered field content, or provide a JSON filter such as {'{"email": "example@domain.com"}'}.
+              Optional. Use plain text to match terms across discovered fields, or provide a JSON filter such as{' '}
+              {'{"email": "example@domain.com"}'}.
+            </p>
+          </div>
+
+          <div className="form-group">
+            <label htmlFor="excludeQuery">Does not contain</label>
+            <input
+              id="excludeQuery"
+              name="excludeQuery"
+              type="text"
+              className="form-control"
+              value={excludeQueryInput}
+              onChange={handleExcludeQueryChange}
+              placeholder="test"
+            />
+            <p className="help-text">
+              Optional. Excludes any document containing one of these text terms across discovered fields.
             </p>
           </div>
 
@@ -507,10 +596,13 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
 
         <div className="documents-view">
           <div className="documents-view__header">
-              <div>
-                <h2>Results</h2>
-                <p>Plain text searches split your query into terms and match them across discovered fields, while JSON keeps precise MongoDB filters.</p>
-              </div>
+            <div>
+              <h2>Results</h2>
+              <p>
+                Plain text searches split your terms across discovered fields. The exclusion field stays optional and
+                filters out matching documents.
+              </p>
+            </div>
             <span className="search-mode-pill">
               {queryMode === 'text' ? 'Tokenized text search across fields' : 'JSON filter mode'}
             </span>
@@ -519,12 +611,12 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
             <div className="loading-state">Searching documents…</div>
           ) : documents.length === 0 ? (
             <div className="empty-state">
-              <p>No documents to display. Run a search to see up to {SEARCH_LIMIT} results.</p>
+              <p>No documents to display. Run a search to see up to {SEARCH_LIMIT} results per page.</p>
             </div>
           ) : (
             <div className="documents-container">
               <h2>
-                Showing {documents.length} document{documents.length === 1 ? '' : 's'} from {collectionName}
+                Showing {resultStart}-{resultEnd} from {collectionName}
               </h2>
               {documents.map((document, index) => {
                 const json = JSON.stringify(document, null, 2);
@@ -535,6 +627,28 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
                   </div>
                 );
               })}
+            </div>
+          )}
+
+          {(documents.length > 0 || currentPage > 0 || hasMoreResults) && (
+            <div className="pagination-controls">
+              <button
+                className="secondary-button pagination-button"
+                type="button"
+                onClick={handlePreviousPage}
+                disabled={isSearching || currentPage === 0}
+              >
+                Previous 10
+              </button>
+              <span className="pagination-status">Page {currentPage + 1}</span>
+              <button
+                className="secondary-button pagination-button"
+                type="button"
+                onClick={handleNextPage}
+                disabled={isSearching || !hasMoreResults}
+              >
+                Next 10
+              </button>
             </div>
           )}
         </div>
