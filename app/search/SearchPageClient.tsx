@@ -486,7 +486,7 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
               placeholder='john doe or {"status": "active"}'
             />
             <p className="help-text">
-              Use plain text to match any discovered field content, or provide a JSON filter such as {'{"email": "example@domain.com"}'}.
+              Use plain text to match terms across any discovered field content, or provide a JSON filter such as {'{"email": "example@domain.com"}'}.
             </p>
           </div>
 
@@ -507,12 +507,12 @@ export default function SearchPageClient({ preconfiguredOptions }: SearchPageCli
 
         <div className="documents-view">
           <div className="documents-view__header">
-            <div>
-              <h2>Results</h2>
-              <p>Plain text searches scan discovered fields, while JSON keeps precise MongoDB filters.</p>
-            </div>
+              <div>
+                <h2>Results</h2>
+                <p>Plain text searches split your query into terms and match them across discovered fields, while JSON keeps precise MongoDB filters.</p>
+              </div>
             <span className="search-mode-pill">
-              {queryMode === 'text' ? 'Text search across fields' : 'JSON filter mode'}
+              {queryMode === 'text' ? 'Tokenized text search across fields' : 'JSON filter mode'}
             </span>
           </div>
           {isSearching ? (

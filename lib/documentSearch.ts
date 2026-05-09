@@ -10,6 +10,7 @@ type TextSearchQuery = {
   mode: 'text';
   rawQuery: string;
   searchTerm: string;
+  searchTerms: string[];
 };
 
 export type ParsedSearchQuery = JsonSearchQuery | TextSearchQuery;
@@ -23,6 +24,7 @@ const FIELD_DISCOVERY_LIMIT = 50;
 const MAX_DISCOVERED_FIELD_PATHS = 200;
 const MAX_DISCOVERY_DEPTH = 6;
 const ARRAY_DISCOVERY_LIMIT = 5;
+const MAX_TEXT_SEARCH_TERMS = 8;
 
 function isPlainObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -125,10 +127,22 @@ export function parseSearchQuery(rawQuery: string): ParsedSearchQuery {
     }
   } catch {}
 
+  const searchTerms = Array.from(
+    new Map(
+      trimmedQuery
+        .split(/\s+/)
+        .map((term) => term.trim())
+        .filter(Boolean)
+        .slice(0, MAX_TEXT_SEARCH_TERMS)
+        .map((term) => [term.toLowerCase(), term] as const)
+    ).values()
+  );
+
   return {
     mode: 'text',
     rawQuery: trimmedQuery,
-    searchTerm: trimmedQuery
+    searchTerm: trimmedQuery,
+    searchTerms
   };
 }
 
@@ -156,28 +170,34 @@ export async function executeDocumentSearch(
     };
   }
 
-  const regex = escapeRegExp(parsedQuery.searchTerm);
-  const expressions = fieldPaths.map((fieldPath) => ({
-    $regexMatch: {
-      input: {
-        $convert: {
-          input: `$${fieldPath}`,
-          to: 'string',
-          onError: '',
-          onNull: ''
+  const searchTerms = parsedQuery.searchTerms.length ? parsedQuery.searchTerms : [parsedQuery.searchTerm];
+  const expressions = searchTerms.map((searchTerm) => {
+    const regex = escapeRegExp(searchTerm);
+
+    return {
+      $or: fieldPaths.map((fieldPath) => ({
+        $regexMatch: {
+          input: {
+            $convert: {
+              input: `$${fieldPath}`,
+              to: 'string',
+              onError: '',
+              onNull: ''
+            }
+          },
+          regex,
+          options: 'i'
         }
-      },
-      regex,
-      options: 'i'
-    }
-  }));
+      }))
+    };
+  });
 
   const documents = await collection
     .aggregate([
       {
         $match: {
           $expr: {
-            $or: expressions
+            $and: expressions
           }
         }
       },

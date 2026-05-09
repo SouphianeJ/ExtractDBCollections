@@ -9,7 +9,7 @@ const dashboardSections = [
   },
   {
     title: 'Search documents',
-    description: 'Run JSON filters or plain-text searches across discovered document fields from a dedicated page.',
+    description: 'Run JSON filters or tokenized plain-text searches that can match terms across multiple document fields.',
     href: '/search',
     badge: 'Search'
   },
@@ -18,6 +18,18 @@ const dashboardSections = [
     description: 'Open the CRUD workspace to create, inspect, update and delete documents in a single flow.',
     href: '/crud',
     badge: 'CRUD'
+  },
+  {
+    title: 'Preview before acting',
+    description: 'Start from the extractor flow when you need to preview collection samples before editing or exporting.',
+    href: '/extract',
+    badge: 'Preview'
+  },
+  {
+    title: 'Prepare inserts',
+    description: 'Use the extractor entry flow to pick a target database and collection before adding new documents.',
+    href: '/extract',
+    badge: 'Insert'
   }
 ] as const;
 
@@ -29,11 +41,14 @@ export default function AdminHomePage() {
           <span className="admin-dashboard__eyebrow">Dashboard</span>
           <h2 className="admin-dashboard__title">Toutes les fonctions principales sont accessibles depuis ici.</h2>
           <p className="admin-dashboard__intro">
-            Naviguez directement vers l&apos;extraction, la recherche documentaire multi-champs ou la gestion CRUD sans
-            repasser par des écrans intermédiaires.
+            Naviguez directement vers les principaux espaces de travail, puis basculez vers les flux guidés de preview
+            ou d&apos;insertion quand vous avez besoin de cibler une collection.
           </p>
         </div>
         <div className="admin-dashboard__hero-actions">
+          <Link className="link-button" href="/extract">
+            Open extractor
+          </Link>
           <Link className="link-button" href="/crud">
             Open CRUD workspace
           </Link>
@@ -59,9 +74,9 @@ export default function AdminHomePage() {
       <div className="info-box admin-dashboard__info">
         <h3>Workflow recommandé</h3>
         <ul>
-          <li>Démarrez par l&apos;extracteur pour choisir votre base et vos collections.</li>
-          <li>Utilisez la recherche pour retrouver rapidement des documents avec du texte simple ou du JSON.</li>
-          <li>Passez dans le CRUD pour modifier ou supprimer précisément les documents ciblés.</li>
+          <li>Démarrez par l&apos;extracteur pour choisir votre base, prévisualiser des collections ou préparer un ajout guidé.</li>
+          <li>Utilisez la recherche pour retrouver rapidement des documents avec plusieurs termes texte ou du JSON précis.</li>
+          <li>Passez dans le CRUD pour créer, modifier ou supprimer uniquement les documents ciblés.</li>
         </ul>
       </div>
     </section>

@@ -747,7 +747,7 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
                   placeholder='john doe or {"status": "active"}'
                 />
                 <p className="help-text help-text--compact">
-                  Plain text scans discovered document fields. JSON stays available for exact MongoDB filters.
+                  Plain text splits your query into terms and matches them across discovered document fields. JSON stays available for exact MongoDB filters.
                 </p>
               </div>
 
@@ -819,7 +819,7 @@ export default function CrudPageClient({ preconfiguredOptions }: CrudPageClientP
               </p>
             </div>
             <span className="search-mode-pill">
-              {queryMode === 'text' ? 'Text search across fields' : 'JSON filter mode'}
+              {queryMode === 'text' ? 'Tokenized text search across fields' : 'JSON filter mode'}
             </span>
           </div>
 
