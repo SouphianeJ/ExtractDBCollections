@@ -13,26 +13,35 @@ Toutes les routes `/api/*` qui touchent MongoDB et toutes les pages protégées 
 
 Le risque principal tient à la conception de l'authentification : un compte administrateur unique donne lecture, écriture, suppression et export complet de toutes les bases configurées. La connexion n'a aucune limitation de tentatives et la clé de signature des sessions est le mot de passe lui-même.
 
-| ID | Sévérité | Titre | Fichier:ligne | Statut |
+| ID | Sévérité (après relecture) | Titre | Fichier:ligne | Statut (relecture) |
 |---|---|---|---|---|
-| SEC-01 | Haute | Connexion admin sans limitation de tentatives ni comparaison à temps constant | `app/api/auth/[...nextauth]/route.ts:60-92` | Ouvert |
-| SEC-02 | Moyenne | Clé HMAC des sessions dérivée de `identifiant:mot_de_passe` (cassage hors ligne, pas de révocation, 30 jours) | `src/lib/auth/session.ts:14-24` | Ouvert |
-| SEC-03 | Moyenne | SSRF / pivot réseau via l'URI MongoDB arbitraire acceptée par toutes les routes | `lib/preconfiguredMongoUris.ts:77-87` | Ouvert |
-| SEC-04 | Moyenne | Redirection ouverte après connexion via `?from=//evil.tld` | `components/LoginForm.tsx:23-24,54` | Ouvert |
-| SEC-05 | Moyenne | Next.js 14.2.3 figé, touché par plusieurs avis de sécurité publiés depuis (dont CVE-2025-29927) | `package.json:15` | Ouvert |
-| SEC-06 | Basse | URI MongoDB personnalisée (avec identifiants) placée dans l'URL des pages | `components/ExtractorForm.tsx:526,553`, `app/crud/CrudPageClient.tsx:148`, `app/search/SearchPageClient.tsx:338` | Ouvert |
-| SEC-07 | Basse | Zip Slip : noms de collection non assainis dans l'archive ZIP exportée | `app/api/extract/route.ts:84` | Ouvert |
-| SEC-08 | Basse | Pas de protection CSRF propre : seule `SameSite=Lax` protège, `request.json()` accepte `text/plain` | `src/lib/auth/session.ts:77`, `middleware.ts:53` | Ouvert |
-| SEC-09 | Info | Aucun en-tête de sécurité HTTP ; `X-Powered-By` exposé | `next.config.mjs:2-4` | Ouvert |
-| SEC-10 | Info | Historique Git : pas de secret réel, mais une période avec mot de passe côté client (`NEXT_PUBLIC_PAGE_PASSWORD`) et des API non authentifiées | commits `512d585` → `ddb4ca8` | À vérifier |
+| SEC-01 | Haute | Connexion admin sans limitation de tentatives ni comparaison à temps constant | `app/api/auth/[...nextauth]/route.ts:60-92` | Confirmé · correctif corrigé par la relecture |
+| SEC-02 | Moyenne | Clé HMAC des sessions dérivée de `identifiant:mot_de_passe` (cassage hors ligne, pas de révocation, 30 jours) | `src/lib/auth/session.ts:14-24` | Confirmé · correctif confirmé |
+| SEC-03 | Basse (était Moyenne) | SSRF / pivot réseau via l'URI MongoDB arbitraire acceptée par toutes les routes | `lib/preconfiguredMongoUris.ts:77-87` | Confirmé (sévérité ajustée : Moyenne → Basse) · correctif confirmé |
+| SEC-04 | Moyenne | Redirection ouverte après connexion via `?from=//evil.tld` | `components/LoginForm.tsx:23-24,54` | Confirmé · correctif confirmé |
+| SEC-05 | Moyenne | Next.js 14.2.3 figé, touché par plusieurs avis de sécurité publiés depuis (dont CVE-2025-29927) | `package.json:15` | Confirmé · correctif corrigé par la relecture (lockfile obligatoire, 14.2.35 insuffisant à terme) |
+| SEC-06 | Basse | URI MongoDB personnalisée (avec identifiants) placée dans l'URL des pages | `components/ExtractorForm.tsx:526,553`, `app/crud/CrudPageClient.tsx:148`, `app/search/SearchPageClient.tsx:338` | Confirmé · correctif confirmé (régression fonctionnelle assumée) |
+| SEC-07 | Basse | Zip Slip : noms de collection non assainis dans l'archive ZIP exportée | `app/api/extract/route.ts:84` | Confirmé · correctif confirmé |
+| SEC-08 | Basse | Pas de protection CSRF propre : seule `SameSite=Lax` protège, `request.json()` accepte `text/plain` | `src/lib/auth/session.ts:77`, `middleware.ts:53` | Confirmé · correctif confirmé |
+| SEC-09 | Info | Aucun en-tête de sécurité HTTP ; `X-Powered-By` exposé | `next.config.mjs:2-4` | Confirmé · correctif confirmé |
+| SEC-10 | Info | Historique Git : pas de secret réel, mais une période avec mot de passe côté client (`NEXT_PUBLIC_PAGE_PASSWORD`) et des API non authentifiées | commits `16e7b0a` / `e5cc9d2` → `ddb4ca8` (initialement `512d585` → `ddb4ca8`) | Confirmé (période d'exposition élargie) · actions confirmées et étendues |
 
-Les correctifs proposés sont indépendants et s'appliquent aussi ensemble, dans l'ordre SEC-01 → SEC-09 (SEC-02 et SEC-03 modifient tous deux `.env.example` sur des zones distinctes).
+Les correctifs proposés sont indépendants et s'appliquent aussi ensemble, dans l'ordre SEC-01 → SEC-09 (SEC-02 et SEC-03 modifient tous deux `.env.example` sur des zones distinctes). Vérifié en relecture avec le diff SEC-01 corrigé : chaque diff passe `git apply --check` seul sur `d279cdc`, et l'ensemble s'applique d'un bloc (voir « Relecture indépendante »).
 
 ---
 
 ## SEC-01 — Connexion admin sans limitation de tentatives ni comparaison à temps constant
 
 **Sévérité : Haute** · `app/api/auth/[...nextauth]/route.ts:60-92`
+
+**Statut : Confirmé** · **Correctif : Corrigé par la relecture**
+
+**Relecture.** Constat confirmé : `handleLogin` (`route.ts:60-92`) n'a aucune garde, le middleware ne couvre pas `/api` (`middleware.ts:53`) et aucun autre code ne limite les tentatives. Sévérité Haute maintenue : point d'entrée public, compte unique aux pleins pouvoirs, seule la robustesse du mot de passe protège. En revanche, le correctif initial se contourne. Test dynamique sur un build `next start` avec le diff initial :
+- en changeant `X-Forwarded-For` à chaque requête, 20 échecs consécutifs donnent tous `401`, sans jamais de `429`. La clé est entièrement fournie par le client quand aucun proxy n'écrase l'en-tête ;
+- derrière un proxy qui *ajoute* l'IP au lieu de remplacer l'en-tête (`$proxy_add_x_forwarded_for` de nginx, configuration la plus courante), le diff initial retient la première entrée, qui est celle de l'attaquant. Avec `X-Forwarded-For: <aléatoire>, 2.2.2.2`, 8 échecs donnent 8 `401` ;
+- la `Map` grossit sans borne quand la clé tourne, ce qui ouvre un risque d'épuisement mémoire.
+
+Le diff ci-dessous remplace celui de l'audit initial. Il retient la **dernière** entrée de `X-Forwarded-For`, celle qu'ajoute le proxy le plus proche. Il ajoute un **plafond global** de 30 échecs par 15 minutes, indépendant de la clé client, qui borne toute rotation à environ 2 900 essais par jour. Enfin, il borne le nombre de clients suivis. Revérifié dynamiquement : même IP → `429` dès la 6ᵉ tentative ; proxy en ajout → `429` dès la 6ᵉ ; rotation d'IP → `429` dès que 30 échecs cumulés sont atteints ; une connexion légitime avant blocage donne `200`. Contrepartie assumée : un attaquant peut maintenir le plafond global atteint et bloquer l'administrateur, qui reçoit `429` pendant la fenêtre. Si ce risque de déni de service est jugé plus grave, il faut un stockage partagé avec une IP fiable, un WAF, ou une MFA/SSO. Une rafale de 40 requêtes parallèles sur la même IP a donné 5 `401` et 35 `429` : aucune course exploitable n'a été observée.
 
 **Description.** Le point d'entrée public `POST /api/auth/login` compare l'identifiant et le mot de passe soumis aux variables d'environnement avec `!==`. Il n'y a ni limitation de débit, ni verrouillage, ni délai, ni journalisation des échecs. Un compte unique protège un accès complet en lecture, écriture, suppression et export à toutes les bases MongoDB préconfigurées.
 
@@ -54,11 +63,11 @@ Test dynamique : 30 requêtes successives avec un mauvais mot de passe renvoient
 
 **Impact.** Compromission totale en confidentialité, intégrité et disponibilité des bases MongoDB configurées. La comparaison `!==` n'est pas à temps constant ; c'est un facteur aggravant théorique, difficile à exploiter à distance.
 
-**Correctif proposé.** Limitation par client (5 échecs par 15 min), comparaison à temps constant et journalisation des échecs. Le compteur est en mémoire, donc propre à chaque instance : en déploiement multi-instances ou serverless, utiliser un stockage partagé (Redis, KV) ou une règle WAF. Ne faire confiance à `x-forwarded-for` que derrière un reverse proxy qui l'écrase. À terme, ajouter une MFA ou un SSO devant l'outil.
+**Correctif proposé (version corrigée par la relecture).** Limitation par client (5 échecs par 15 min) et plafond global (30 échecs par 15 min), comparaison à temps constant et journalisation des échecs. Le compteur est en mémoire, donc propre à chaque instance : en déploiement multi-instances ou serverless, utiliser un stockage partagé (Redis, KV) ou une règle WAF. Ne faire confiance à `x-forwarded-for` que derrière un reverse proxy maîtrisé ; seule sa dernière entrée est retenue. À terme, ajouter une MFA ou un SSO devant l'outil.
 
 ```diff
 diff --git a/app/api/auth/[...nextauth]/route.ts b/app/api/auth/[...nextauth]/route.ts
-index cd0d263..985599e 100644
+index cd0d263..505d09a 100644
 --- a/app/api/auth/[...nextauth]/route.ts
 +++ b/app/api/auth/[...nextauth]/route.ts
 @@ -1,3 +1,4 @@
@@ -66,33 +75,55 @@ index cd0d263..985599e 100644
  import { NextResponse } from 'next/server';
  
  import {
-@@ -25,6 +26,37 @@ function getAdminCredentials(): { identifier: string; password: string } | null
+@@ -25,6 +26,59 @@ function getAdminCredentials(): { identifier: string; password: string } | null
    return { identifier, password };
  }
  
 +const MAX_LOGIN_ATTEMPTS = 5;
++const MAX_GLOBAL_FAILED_ATTEMPTS = 30;
 +const LOGIN_WINDOW_MS = 15 * 60 * 1000;
++const MAX_TRACKED_CLIENTS = 10_000;
++const GLOBAL_KEY = '*';
 +const loginAttempts = new Map<string, { count: number; resetAt: number }>();
 +
 +function getClientKey(request: Request): string {
-+  // À adapter : ne faire confiance à x-forwarded-for que derrière un reverse proxy maîtrisé.
-+  return request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() || 'unknown';
++  // x-forwarded-for est fourni par le client : seule la dernière entrée (ajoutée par le proxy le plus
++  // proche) est fiable, et seulement derrière un reverse proxy maîtrisé. Le plafond global couvre le reste.
++  return request.headers.get('x-forwarded-for')?.split(',').pop()?.trim() || 'unknown';
++}
++
++function isOverLimit(key: string, max: number, now: number): boolean {
++  const entry = loginAttempts.get(key);
++  return Boolean(entry && entry.resetAt > now && entry.count >= max);
 +}
 +
 +function isRateLimited(key: string): boolean {
 +  const now = Date.now();
-+  const entry = loginAttempts.get(key);
-+  return Boolean(entry && entry.resetAt > now && entry.count >= MAX_LOGIN_ATTEMPTS);
++  return isOverLimit(GLOBAL_KEY, MAX_GLOBAL_FAILED_ATTEMPTS, now) || isOverLimit(key, MAX_LOGIN_ATTEMPTS, now);
 +}
 +
-+function recordFailedAttempt(key: string): void {
-+  const now = Date.now();
++function incrementAttempts(key: string, now: number): void {
 +  const entry = loginAttempts.get(key);
 +  if (!entry || entry.resetAt <= now) {
 +    loginAttempts.set(key, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
 +    return;
 +  }
 +  entry.count += 1;
++}
++
++function recordFailedAttempt(key: string): void {
++  const now = Date.now();
++  if (loginAttempts.size >= MAX_TRACKED_CLIENTS) {
++    loginAttempts.forEach((entry, storedKey) => {
++      if (entry.resetAt <= now) {
++        loginAttempts.delete(storedKey);
++      }
++    });
++  }
++  incrementAttempts(GLOBAL_KEY, now);
++  if (loginAttempts.has(key) || loginAttempts.size < MAX_TRACKED_CLIENTS) {
++    incrementAttempts(key, now);
++  }
 +}
 +
 +function safeEqual(a: string, b: string): boolean {
@@ -104,7 +135,7 @@ index cd0d263..985599e 100644
  function isBooleanString(value: unknown): value is 'true' | 'false' {
    return value === 'true' || value === 'false';
  }
-@@ -58,6 +90,12 @@ export async function GET(_request: Request, { params }: { params: { nextauth?:
+@@ -58,6 +112,12 @@ export async function GET(_request: Request, { params }: { params: { nextauth?:
  }
  
  async function handleLogin(request: Request) {
@@ -117,7 +148,7 @@ index cd0d263..985599e 100644
    try {
      const { identifier, password, rememberMe } = (await request.json()) as Partial<{
        identifier: string;
-@@ -84,13 +122,17 @@ async function handleLogin(request: Request) {
+@@ -84,13 +144,17 @@ async function handleLogin(request: Request) {
        );
      }
  
@@ -146,6 +177,10 @@ index cd0d263..985599e 100644
 ## SEC-02 — Clé HMAC des sessions dérivée de `identifiant:mot_de_passe`
 
 **Sévérité : Moyenne** · `src/lib/auth/session.ts:14-24` (et `:7`, `:110-112`)
+
+**Statut : Confirmé** · **Correctif : Confirmé**
+
+**Relecture.** Reproduit hors ligne : un JWT signé par `jose` avec la clé `identifiant:mot_de_passe` est vérifié avec un simple HMAC-SHA256 Node, et le bon candidat est retrouvé parmi une liste. `handleLogout` (`route.ts:110-115`) supprime seulement le cookie et aucune liste de révocation n'existe. Le diff passe `git apply --check`, `tsc`, `next lint` et `next build`. Avec `ADMIN_SESSION_SECRET` défini, la connexion, les routes API et le middleware (runtime Edge) acceptent la session (tests dynamiques T5/T6/T9/T13). Sans cette variable, la signature lève une exception et la connexion répond `500` : c'est le comportement fail-closed annoncé. Le diff ne met pas à jour la note de `README.md:192`, qui indique encore « signed with your admin credentials ». À corriger lors de l'application ; ce n'est pas bloquant.
 
 **Description.** Le cookie `admin-session` est un JWT HS256 signé avec la clé `${ADMIN_IDENTIFIER}:${ADMIN_PASSWORD}`. Le secret de signature est donc un mot de passe humain, dont la partie identifiant est probablement connue. Les jetons durent jusqu'à 30 jours (« Se souvenir de moi »). La déconnexion supprime seulement le cookie côté navigateur : un jeton copié reste valide jusqu'à son expiration, et le seul moyen de le révoquer est de changer le mot de passe admin.
 
@@ -225,7 +260,11 @@ index f57cffb..f647bd3 100644
 
 ## SEC-03 — SSRF / pivot réseau via l'URI MongoDB arbitraire
 
-**Sévérité : Moyenne** · `lib/preconfiguredMongoUris.ts:77-87` (utilisé par `app/api/{databases,collections,extract,view,search,crud,edit}/route.ts`)
+**Sévérité : Basse** (initialement Moyenne) · `lib/preconfiguredMongoUris.ts:77-87` (utilisé par `app/api/{databases,collections,extract,view,search,crud,edit}/route.ts`)
+
+**Statut : Confirmé (sévérité ajustée : Moyenne → Basse)** · **Correctif : Confirmé**
+
+**Relecture.** Le chemin est confirmé : les 7 routes appellent `resolveMongoConnectionUri` puis `new MongoClient(resolved.uri)`, et toutes renvoient `error.message` (par exemple `app/api/databases/route.ts:57-62`). Mais chacune exige d'abord `getAdminSession()` (par exemple `app/api/databases/route.ts:25-29`), et l'application n'a qu'un seul rôle. Seul l'administrateur peut donc exploiter le problème, et la connexion à une URI arbitraire est une fonction documentée (`README.md:8`, `:89`). Le constat est un durcissement face à un compte déjà compromis (SEC-01, SEC-02, SEC-04), pas une élévation de privilège : d'où Basse. Correctif testé : URI personnalisée → `403 Custom MongoDB URIs are disabled on this server.` ; identifiant préconfiguré → inchangé ; corps vide → `400 MongoDB URI is required` comme avant. Le correctif désactive par défaut une fonction documentée. Il faut donc documenter `ALLOW_CUSTOM_MONGODB_URI` dans le README. Si le drapeau est activé, l'oracle `error.message` subsiste.
 
 **Description.** Si aucun `preconfiguredMongoUriId` n'est fourni, `resolveMongoConnectionUri` renvoie tel quel le `mongoUri` du corps de requête, puis chaque route fait `new MongoClient(uri).connect()` depuis le serveur. Il n'y a ni liste d'hôtes autorisés, ni interrupteur pour désactiver la fonction. Le message d'erreur du pilote est renvoyé au client (`message: error.message`), ce qui en fait un oracle.
 
@@ -290,6 +329,10 @@ index d6ea96e..7783ced 100644
 
 **Sévérité : Moyenne** · `components/LoginForm.tsx:23-24,54`
 
+**Statut : Confirmé** · **Correctif : Confirmé**
+
+**Relecture.** Chemin vérifié dans Next 14.2.3 installé : `useNavigate` construit `new URL(href, location.href)` puis `isExternalURL(url)` (`next/dist/client/components/app-router.js:95-97,167-175`). `handleExternalUrl` positionne `mpaNavigation` (`router-reducer/reducers/navigate-reducer.js`), puis `location.assign(canonicalUrl)` est appelé (`app-router.js:388-393`). `//evil.com`, `/\evil.com` et `/<TAB>/evil.com` résolvent tous vers `https://evil.com/`. Aucune garde serveur : `app/login/page.tsx` ne lit pas `from`. La regex corrigée a été testée : `/admin`, `/crud?x=1` et `/%2F%2Fevil.com` sont acceptés et restent sur la même origine. `//evil.com`, `/\evil.com`, `/<TAB>/evil.com`, `https://evil.com`, les espaces Unicode et l'espace insécable sont refusés et renvoient vers `/admin`.
+
 **Description.** Après une connexion réussie, le formulaire redirige vers le paramètre `from` dès qu'il commence par `/`. Les URL relatives au protocole (`//evil.tld`), `/\evil.tld` (le navigateur normalise `\` en `/`) ou `/<TAB>/evil.tld` (tabulation supprimée par le parseur d'URL) passent ce test. Or le routeur App Router de Next 14 traite une URL d'une autre origine par une navigation complète (`location.assign`, cf. `node_modules/next/dist/client/components/app-router.js`, `isExternalURL` puis `mpaNavigation`).
 
 **Preuve.**
@@ -334,6 +377,14 @@ index cad6464..cd8fb18 100644
 
 **Sévérité : Moyenne** · `package.json:15` (`"next": "14.2.3"`, version exacte confirmée dans `package-lock.json`)
 
+**Statut : Confirmé** · **Correctif : Corrigé par la relecture** (complété)
+
+**Relecture.** Contournement reproduit sur 14.2.3 : avec `x-middleware-subrequest`, `GET /crud` renvoie `307 → /login?from=/crud` (redirection de la page) ; sans cet en-tête, `307 → /login?from=%2Fcrud` (redirection du middleware). Toutes les pages et routes revérifient bien la session, ce qui contient l'impact. Sur 14.2.35, les deux requêtes donnent la redirection du middleware : le contournement est corrigé. `npm audit --omit=dev` en ligne (registre accessible pendant la relecture) recense **37 avis** Next.js sur le lockfile actuel, dont 4 critiques. Deux réserves sur le correctif initial :
+1. **Le diff seul casse l'installation reproductible** : sans régénération du lockfile, `npm ci` échoue (« package.json and package-lock.json are not in sync »), constaté. Le lockfile régénéré (`npm install`, environ 630 lignes modifiées) doit être commité avec le diff. Un build avec 14.2.35 passe `tsc`, `next lint` et `next build`.
+2. **14.2.35 est la dernière 14.x (dist-tag `next-14`) et reste vulnérable** : `npm audit` y recense encore **25 avis**, dont 3 critiques (RCE non authentifiée dans l'Image Optimization API avec des fichiers SVG ou AVIF, et RCE sur les serveurs Windows), corrigés seulement dans les 15.5.x. Leur applicabilité n'est pas démontrée : pas de dossier `public/`, pas d'usage de `next/image`. La montée en 14.2.35 est donc un palliatif immédiat, pas une correction complète. La migration vers une branche maintenue (`15.5.29`, dist-tag `backport`, ou `16.4.5`, dist-tag `latest`) impose React 19, ainsi que `cookies()` et `params` asynchrones (`src/lib/auth/session.ts`, `app/api/auth/[...nextauth]/route.ts`). Elle n'est ni minimale ni testée ici, et doit être planifiée.
+
+Commandes à appliquer avec le diff : `npm install next@14.2.35 eslint-config-next@14.2.35 && git add package.json package-lock.json`.
+
 **Description.** La version est figée sur une 14.2.x de mai 2024. Plusieurs avis de sécurité Next.js corrigés dans les 14.2.x suivantes la concernent, notamment :
 - **CVE-2025-29927** (contournement de l'autorisation du middleware via l'en-tête `x-middleware-subrequest`, corrigé en 14.2.25) ;
 - **CVE-2024-51479** (contournement du middleware pour les chemins à la racine, corrigé en 14.2.15) ;
@@ -346,7 +397,7 @@ index cad6464..cd8fb18 100644
 
 **Impact.** Disponibilité ; régression d'autorisation latente.
 
-**Correctif proposé.** Monter en 14.2.35, dernière 14.2.x publiée au moment de l'audit (`npm view next@14 version`), puis régénérer le lockfile (`npm install`) et relancer `npm audit` en ligne. Envisager ensuite une migration vers une branche maintenue. En complément, bloquer l'en-tête `x-middleware-subrequest` au niveau du reverse proxy.
+**Correctif proposé.** Monter en 14.2.35 (palliatif, voir la relecture ci-dessus), dernière 14.2.x publiée au moment de l'audit (`npm view next@14 version`), puis régénérer le lockfile (`npm install`) et relancer `npm audit` en ligne. Envisager ensuite une migration vers une branche maintenue. En complément, bloquer l'en-tête `x-middleware-subrequest` au niveau du reverse proxy.
 
 ```diff
 diff --git a/package.json b/package.json
@@ -378,6 +429,10 @@ index a81eb85..aef38fa 100644
 ## SEC-06 — URI MongoDB personnalisée placée dans l'URL
 
 **Sévérité : Basse** · `components/ExtractorForm.tsx:526,553`, `app/crud/CrudPageClient.tsx:148`, `app/search/SearchPageClient.tsx:338`
+
+**Statut : Confirmé** · **Correctif : Confirmé** (régression fonctionnelle assumée)
+
+**Relecture.** Les quatre points d'émission sont confirmés et il n'y en a pas d'autre (`grep params.set` / `router.push` / `href=`). `router.push` côté App Router émet une requête RSC vers l'URL complète, query string comprise : l'URI atteint donc bien les journaux serveur. Petite inexactitude du constat : aucun lien ne mène à `/edit` (`EditPageClient.tsx:52` lit `mongoUri`, mais aucune page ne le produit). Le diff couvre les 4 sites et compile. Conséquence vérifiée dans le code : en mode URI personnalisée, `/view` reçoit une URI vide et affiche « MongoDB URI is required ». L'audit annonce cette régression, cohérente avec SEC-03. `CrudPageClient.tsx:694-713` et `SearchPageClient.tsx:323` affichent toujours l'URI saisie : c'est un risque d'exposition à l'écran, sans fuite réseau.
 
 **Description.** Quand l'utilisateur saisit une URI personnalisée (qui contient en général `user:motdepasse@`), l'application la recopie dans la query string des liens vers `/view`, `/crud` et `/edit` (`?mongoUri=mongodb+srv://user:****@...`). Ces pages sont rendues côté serveur. L'URI complète, avec ses identifiants, se retrouve donc dans les journaux d'accès du reverse proxy et de l'hébergeur, dans l'historique et la synchronisation du navigateur, et dans toute URL copiée ou partagée. `CrudPageClient.tsx:713` l'affiche aussi en clair (« Connected through: … »).
 
@@ -477,6 +532,10 @@ index dd9c25c..2194719 100644
 
 **Sévérité : Basse** · `app/api/extract/route.ts:84`
 
+**Statut : Confirmé** · **Correctif : Confirmé**
+
+**Relecture.** Vérifié sur `archiver` 5.3.2 / `archiver-utils` 2.1.0 installés (`index.js:98-100`). Une archive produite avec l'entrée `a/../../../x_<horodatage>.json` conserve ce nom tel quel. `../../evil…` est en revanche nettoyé en tête. Avec le correctif, le nom devient `a_.._.._.._x_<horodatage>.json`, sans aucun séparateur. Le nom du fichier unique (`route.ts:171`) passe par `encodeURIComponent` dans `Content-Disposition` et n'est pas concerné. Les noms non ASCII deviennent des `_`, avec un risque de collision déjà signalé.
+
 **Description.** En export « toutes collections », chaque entrée du ZIP s'appelle `${collectionName}_${timestamp}.json`, et le nom de collection vient de `db.listCollections()` sans assainissement. MongoDB n'interdit pas `/` ni `..` dans un nom de collection (seuls `$`, `\0`, la chaîne vide et le préfixe `system.` le sont). Côté archiver 5.3.2, `archiver-utils.sanitizePath` (`normalizePath(p).replace(/^\w+:/, '').replace(/^(\.\.\/|\/)+/, '')`) ne retire les `../` qu'en **tête** de chemin. Vérifié : `a/../../../x_1.json` est conservé tel quel.
 
 **Preuve.**
@@ -514,6 +573,10 @@ index d6c68bd..c4446f2 100644
 ## SEC-08 — Protection CSRF reposant uniquement sur `SameSite=Lax`
 
 **Sévérité : Basse** · `src/lib/auth/session.ts:77`, `middleware.ts:53`, routes `app/api/*/route.ts` (`await request.json()`)
+
+**Statut : Confirmé** · **Correctif : Confirmé**
+
+**Relecture.** `Request.json()` analyse bien un corps `text/plain` (vérifié avec Node 22). Aucune route ne lit `Origin` ou `Content-Type`, et le cookie est `SameSite=Lax`. Toutes les routes d'état sont en `POST` ; aucun `GET` ne modifie d'état. Correctif testé sur build : `Origin: https://evil.example` + `text/plain` → `403` ; `Origin: null` → `403` ; même origine → la requête passe ; `GET /api/health` reste accessible. La connexion, la déconnexion et les appels de l'interface envoient tous `Origin`, puisque les navigateurs l'ajoutent à tout `fetch` non-GET. Ils fonctionnent donc. Points d'exploitation à connaître : (1) une requête **sans** `Origin` est refusée, donc les clients scriptés (`curl`) des endpoints documentés dans le README doivent désormais envoyer `Origin` ; (2) un `x-forwarded-host` multivalué (`a, b`) ou un proxy qui réécrit `Host` sans poser `x-forwarded-host` bloquerait les requêtes légitimes. L'en-tête de contournement de CVE-2025-29927 ne permet pas d'éviter ce contrôle depuis un navigateur, car un en-tête personnalisé cross-site déclenche un preflight CORS refusé.
 
 **Description.** Les routes d'état (`/api/crud`, `/api/edit`, `/api/extract`, `/api/auth/*`) ne vérifient ni l'en-tête `Origin`, ni un jeton CSRF, ni le `Content-Type` : `request.json()` analyse aussi un corps envoyé en `text/plain`. Le middleware ne couvre pas `/api`. La seule protection est l'attribut `SameSite=Lax` du cookie, qui bloque les requêtes *cross-site* mais pas celles d'un site *same-site* (autre sous-domaine du même domaine enregistrable).
 
@@ -567,6 +630,10 @@ index 3c4e214..4ea037a 100644
 
 **Sévérité : Info** · `next.config.mjs:2-4`
 
+**Statut : Confirmé** · **Correctif : Confirmé**
+
+**Relecture.** `next.config.mjs` ne définit ni `headers()` ni `poweredByHeader`. Après correctif, `curl -I /login` renvoie bien les 5 en-têtes, sans `X-Powered-By`. `form-action 'self'` ne gêne pas l'application, qui soumet ses formulaires par `fetch`. `includeSubDomains` ne s'applique qu'aux sous-domaines de l'hôte de l'outil.
+
 Aucun `Content-Security-Policy`, `X-Frame-Options` / `frame-ancestors`, `Strict-Transport-Security`, `Referrer-Policy` ni `X-Content-Type-Options` n'est défini, et `X-Powered-By: Next.js` est envoyé. Le clickjacking cross-site est déjà atténué par `SameSite=Lax`, puisque le cookie n'est pas envoyé dans une iframe tierce. Il s'agit d'un durcissement de bonne pratique.
 
 ```diff
@@ -600,7 +667,14 @@ index 7d08ffa..b3087bf 100644
 
 ## SEC-10 — Historique Git : mot de passe côté client et API ouvertes (période `512d585` → `ddb4ca8`)
 
-**Sévérité : Info** · **Statut : À vérifier** · **Correctif : À vérifier**
+**Sévérité : Info** · **Statut : Confirmé (période d'exposition élargie)** · **Correctif : Confirmé (actions étendues)**
+
+**Relecture.** Aucun secret réel trouvé, confirmé. Sur toutes les versions de `.env.example`, toutes les valeurs sont vides. `.env` n'a jamais été suivi. Les fichiers supprimés (`server/`, `extract-db-app/`, `components/PasswordGate.tsx`) ne contiennent que des exemples. `README.md:69-70` contient un exemple (`admin@example.com`) et non un secret. Le point sur `NEXT_PUBLIC_PAGE_PASSWORD` est confirmé (`512d585:components/PasswordGate.tsx:5`, valeur incluse dans le bundle). **Désaccord sur la période** : les API étaient sans authentification **dès le premier backend**, pas seulement à partir de `512d585`. `git grep -i "session\|password"` ne trouve rien dans `app/api` ni `server/src` à `16e7b0a`, `f839135`, `512d585` et `ddb4ca8^`. Plus précisément :
+- `16e7b0a` (22/10/2025) → `9854553` (23/10/2025) : serveur Express `server/src/index.ts` avec `app.use(cors())` (toutes origines autorisées) et `POST /api/extract` ouvert, mais l'URI était fournie par l'appelant ;
+- `e5cc9d2` (23/10/2025) : apparition des URI préconfigurées (`MONGODB_URI1`…, identifiants côté serveur). À partir de ce commit, et **avant même** le mot de passe côté client de `512d585`, un déploiement exposait l'export complet des bases préconfigurées sans authentification, jusqu'à `ddb4ca8` (27/10/2025).
+
+Les actions 1 à 3 restent valables, mais l'action 3 doit couvrir toute build déployée entre `e5cc9d2` et `ddb4ca8` (23/10 → 27/10/2025), et pas seulement celles construites à partir de `512d585`.
+
 
 **Constat.** Aucun secret réel dans l'historique : `.env` n'a jamais été commis, et `.env.example` n'a jamais contenu que des valeurs vides. Toutes les URI rencontrées sont des exemples (`mongodb://localhost:27017/mydb`, `mongodb+srv://user:****@cluster.mongodb.net`). En revanche :
 - le commit `512d585` (24/10/2025) a introduit `components/PasswordGate.tsx`, qui comparait côté navigateur la saisie à `NEXT_PUBLIC_PAGE_PASSWORD`. Une variable `NEXT_PUBLIC_*` est **incluse en clair dans le bundle JavaScript** servi à tout visiteur ;
@@ -616,3 +690,43 @@ Le commit `309b20b` retire seulement la variable devenue inutile de `.env.exampl
 3. Faire tourner les identifiants des bases `MONGODB_URI*` qui étaient configurées sur cette instance, et consulter les journaux d'accès de l'époque à la recherche d'appels à `/api/extract`.
 
 Aucune réécriture d'historique n'est nécessaire, puisque le dépôt ne contient aucune valeur sensible. Si un secret était découvert ultérieurement, il faudrait d'abord le révoquer, puis purger l'historique (`git filter-repo --replace-text`), forcer le push de toutes les branches et tags, et demander l'invalidation des caches et forks.
+
+---
+
+## Relecture indépendante
+
+| Élément | Valeur |
+|---|---|
+| Date | 2026-11-04 |
+| Base relue | `d279cdc` (audit initial) sur `309b20b`, branche `ccr-f9f6ef8d-r2mrqx` |
+| Posture | Chaque affirmation de l'audit a été traitée comme une hypothèse. Le code cité a été relu, avec tout le chemin d'exécution (middleware, revérification de session dans les pages et les routes, validation en amont) ; chaque correctif a été appliqué et éprouvé dans un worktree jetable, supprimé à la fin. Seul ce fichier est modifié dans le dépôt. |
+
+### Méthode
+
+1. **Relecture statique.** Fichiers relus : `middleware.ts`, `src/lib/auth/session.ts`, `app/api/auth/[...nextauth]/route.ts`, les 8 autres routes `app/api/*`, toutes les `page.tsx` et `app/admin/layout.tsx`, `lib/preconfiguredMongoUris.ts`, `components/LoginForm.tsx`, ainsi que les sites de construction d'URL (`grep params.set|router.push|href=`). Code tiers vérifié dans `node_modules` : routeur App Router de Next 14.2.3 (`app-router.js`, `navigate-reducer.js`), `archiver-utils` 2.1.0.
+2. **Historique Git.** Commandes : `git log --all` (44 commits, branches `main` et `ccr-f9f6ef8d-r2mrqx`), toutes les versions de `.env.example`, chemins jamais suivis (`git ls-tree` sur chaque commit), fichiers supprimés, `git grep` de l'authentification à `16e7b0a`, `f839135`, `512d585`, `ddb4ca8^` et `ddb4ca8`, `git log -S MONGODB_URI1`.
+3. **Correctifs.** Les 9 diffs ont été extraits automatiquement du document. Chacun passe `git apply --check` seul ; tous ont ensuite été appliqués ensemble dans le worktree.
+4. **Vérifications statiques et build** (Node 22.23.4, npm 10.9.9, `npm ci`) :
+   - diffs de l'audit, Next 14.2.3 : `tsc --noEmit` OK, `next lint` OK (« No ESLint warnings or errors »), `next build` OK ;
+   - première version du SEC-01 corrigé : `tsc` et `next build` **échouent** (TS2802, itération d'une `Map` avec la cible `es5` du tsconfig). Remplacée par `forEach`, puis `tsc`, `next lint` et `next build` OK ;
+   - avec `npm install next@14.2.35 eslint-config-next@14.2.35` : `tsc`, `next lint` et `next build` OK (« Next.js 14.2.35 »). `npm ci` sur le `package.json` modifié sans lockfile régénéré : **échec**.
+5. **Tests dynamiques** sur `next start -H 127.0.0.1` (port libre, identifiants de test aléatoires jamais écrits sur disque, sans MongoDB) :
+   - SEC-01, diff initial : même IP ×7 → `401×5, 429×2` ; rotation de `X-Forwarded-For` ×20 → `401×20` (**contournement**) ; proxy en ajout ×8 → `401×8` (**contournement**) ; rafale parallèle ×40 → `401×5, 429×35`.
+   - SEC-01, diff corrigé : bonne connexion → `200` ; même IP ×7 → `401×5, 429×2` ; proxy en ajout ×7 → `401×5, 429×2` ; rotation ×30 → `401` jusqu'à 30 échecs cumulés puis `429` ; bonne connexion une fois le plafond global atteint → `429` (contrepartie documentée).
+   - T5/T6 : connexion `200`, puis URI personnalisée → `403` (SEC-03).
+   - T7/T8/T9/T9b : `Origin` étranger + `text/plain` → `403` ; sans `Origin` → `403` ; même origine → `400` métier ; `Origin: null` → `403` (SEC-08).
+   - T10 : les 5 en-têtes de sécurité sont présents, `X-Powered-By` absent (SEC-09).
+   - T11 : `x-middleware-subrequest` sur `/crud` → redirection de la page en 14.2.3 (contournement), redirection du middleware en 14.2.35 (corrigé) (SEC-05).
+   - T12/T13 : `GET /api/health` → `200` ; déconnexion → `200`.
+6. **Vérifications hors ligne (Node).** `Request.json()` analyse un corps `text/plain`. Mot de passe retrouvé depuis un JWT signé `identifiant:mot_de_passe` par simple HMAC. Comportement de la regex SEC-04 sur 12 cas. Archive ZIP produite par `archiver` 5.3.2 avec et sans assainissement, relue par `zipfile`.
+7. **Dépendances.** `npm audit --omit=dev`, en ligne cette fois, contrairement à l'audit initial : `next` 14.2.3 → 37 avis (4 critiques, 13 hauts) ; `next` 14.2.35 → 25 avis (3 critiques, 9 hauts). Autres paquets signalés dans les deux cas : `postcss`, `nanoid`, `source-map-js`, `brace-expansion`, `minimatch`. Ce sont surtout des dépendances de build ou d'outillage, et leur exposition à l'exécution n'a pas été établie : ils ne font pas l'objet d'un constat distinct.
+
+### Désaccords avec l'audit initial
+
+1. **SEC-01, correctif contournable.** La clé de limitation est la première entrée de `X-Forwarded-For`, fournie par le client. Une rotation de l'en-tête, ou un proxy en mode ajout, annule la protection (démontré). La `Map` n'est pas bornée. Le diff a été remplacé : dernière entrée de `X-Forwarded-For`, plafond global, borne mémoire. Il a été testé.
+2. **SEC-03, sévérité Moyenne → Basse.** L'exploitation exige la session de l'unique administrateur (contrôle `getAdminSession()` dans les 7 routes), et la connexion à une URI arbitraire est une fonction documentée. Il s'agit d'un durcissement, pas d'une élévation de privilège.
+3. **SEC-05, correctif incomplet.** (a) Sans lockfile régénéré, `npm ci` échoue. (b) 14.2.35 est la fin de la branche 14 et reste dans la plage de 25 avis, dont 3 critiques, corrigés seulement en 15.5.x. C'est un palliatif ; la migration vers 15.5.29 ou 16.x est à planifier. La phrase « `npm audit --offline` … sans valeur » de l'audit initial était juste ; l'audit en ligne confirme le risque résiduel.
+4. **SEC-10, période sous-estimée.** Les API étaient sans authentification dès `16e7b0a` (22/10/2025, Express avec `cors()` ouvert). L'export sans authentification des bases **préconfigurées** est possible dès `e5cc9d2` (23/10/2025), et non à partir de `512d585`. L'action 3 est étendue en conséquence.
+5. **Précisions mineures, sans changement de verdict.** SEC-06 : aucun lien ne mène à `/edit`. SEC-02 : `README.md:192` est à mettre à jour avec le correctif. SEC-03 : `ALLOW_CUSTOM_MONGODB_URI` est à documenter dans le README. SEC-08 : les clients scriptés doivent envoyer `Origin`, et un `x-forwarded-host` multivalué casse le contrôle.
+
+Aucune nouvelle faille manifeste n'a été trouvée dans le périmètre relu. Les routes CRUD, recherche et édition n'offrent à l'administrateur que des pouvoirs qu'il a déjà par conception. Aucun `dangerouslySetInnerHTML`, `eval`, `new Function` ni `child_process` dans `app/`, `components/`, `lib/`, `src/`.
