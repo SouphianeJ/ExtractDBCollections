@@ -1,3 +1,4 @@
+import { createHash, timingSafeEqual } from 'crypto';
 import { NextResponse } from 'next/server';
 
 import {
@@ -23,6 +24,59 @@ function getAdminCredentials(): { identifier: string; password: string } | null 
   }
 
   return { identifier, password };
+}
+
+const MAX_LOGIN_ATTEMPTS = 5;
+const MAX_GLOBAL_FAILED_ATTEMPTS = 30;
+const LOGIN_WINDOW_MS = 15 * 60 * 1000;
+const MAX_TRACKED_CLIENTS = 10_000;
+const GLOBAL_KEY = '*';
+const loginAttempts = new Map<string, { count: number; resetAt: number }>();
+
+function getClientKey(request: Request): string {
+  // x-forwarded-for est fourni par le client : seule la dernière entrée (ajoutée par le proxy le plus
+  // proche) est fiable, et seulement derrière un reverse proxy maîtrisé. Le plafond global couvre le reste.
+  return request.headers.get('x-forwarded-for')?.split(',').pop()?.trim() || 'unknown';
+}
+
+function isOverLimit(key: string, max: number, now: number): boolean {
+  const entry = loginAttempts.get(key);
+  return Boolean(entry && entry.resetAt > now && entry.count >= max);
+}
+
+function isRateLimited(key: string): boolean {
+  const now = Date.now();
+  return isOverLimit(GLOBAL_KEY, MAX_GLOBAL_FAILED_ATTEMPTS, now) || isOverLimit(key, MAX_LOGIN_ATTEMPTS, now);
+}
+
+function incrementAttempts(key: string, now: number): void {
+  const entry = loginAttempts.get(key);
+  if (!entry || entry.resetAt <= now) {
+    loginAttempts.set(key, { count: 1, resetAt: now + LOGIN_WINDOW_MS });
+    return;
+  }
+  entry.count += 1;
+}
+
+function recordFailedAttempt(key: string): void {
+  const now = Date.now();
+  if (loginAttempts.size >= MAX_TRACKED_CLIENTS) {
+    loginAttempts.forEach((entry, storedKey) => {
+      if (entry.resetAt <= now) {
+        loginAttempts.delete(storedKey);
+      }
+    });
+  }
+  incrementAttempts(GLOBAL_KEY, now);
+  if (loginAttempts.has(key) || loginAttempts.size < MAX_TRACKED_CLIENTS) {
+    incrementAttempts(key, now);
+  }
+}
+
+function safeEqual(a: string, b: string): boolean {
+  const left = createHash('sha256').update(a).digest();
+  const right = createHash('sha256').update(b).digest();
+  return timingSafeEqual(left, right);
 }
 
 function isBooleanString(value: unknown): value is 'true' | 'false' {
@@ -58,6 +112,12 @@ export async function GET(_request: Request, { params }: { params: { nextauth?: 
 }
 
 async function handleLogin(request: Request) {
+  const clientKey = getClientKey(request);
+
+  if (isRateLimited(clientKey)) {
+    return NextResponse.json({ error: 'Too many attempts. Try again later.' }, { status: 429 });
+  }
+
   try {
     const { identifier, password, rememberMe } = (await request.json()) as Partial<{
       identifier: string;
@@ -84,12 +144,16 @@ async function handleLogin(request: Request) {
       );
     }
 
-    if (
-      trimmedIdentifier !== credentials.identifier ||
-      trimmedPassword !== credentials.password
-    ) {
+    const identifierMatches = safeEqual(trimmedIdentifier, credentials.identifier);
+    const passwordMatches = safeEqual(trimmedPassword, credentials.password);
+
+    if (!identifierMatches || !passwordMatches) {
+      recordFailedAttempt(clientKey);
+      console.warn('Failed admin login attempt from', clientKey);
       return NextResponse.json({ error: 'Invalid credentials.' }, { status: 401 });
     }
+
+    loginAttempts.delete(clientKey);
 
     const rememberFlag =
       typeof rememberMe === 'boolean'
